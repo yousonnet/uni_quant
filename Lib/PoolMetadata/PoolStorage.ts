@@ -20,9 +20,9 @@ async function getPoolToken(
   let token1_promise = contract_callable.token1();
   let [token0, token1] = await Promise.all([token0_promise, token1_promise]);
   return {
-    pool: pool_address,
-    token0,
-    token1,
+    pool: pool_address.toLowerCase(),
+    token0: token0.toLowerCase(),
+    token1: token1.toLowerCase(),
   };
 }
 

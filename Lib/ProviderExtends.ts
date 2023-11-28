@@ -4,38 +4,40 @@ import {
   uniswap_v2_abi_decoder,
   uniswap_v3_abi_decoder,
   weth_abi_decoder,
+  TOPICHASHTABLE,
+  ETH_MAINNET_CONSTANTS,
 } from "./BasisConstants";
 import { interface_pool_tokens } from "./PoolMetadata/PoolStorage";
 import Decimal from "decimal.js";
 import { PoolProvider } from "./PoolMetadata/ScriptInit";
 import { TokenProvider } from "./TokenMetadata/ScriptInit";
 import {
-  interface_Deposit_Event_info,
-  interface_LiqAction_Event_V3_info,
   interface_Transfer_Event_info,
-  interface_Withdrawal_Event_info,
   interface_swap_info,
-  interface_LiqAction_Event_V2_info,
+  interface_LiqAction_Event_info,
+  interface_info_type,
 } from "./TypeAndInterface";
 import {
   sortUniV2SwapInfo,
   sortUniV3SwapInfo,
   sortUniV2SyncInfo,
 } from "./UniSwapSorts";
-import { type } from "os";
-import { decode } from "punycode";
-
+import { EtherScanAPICLI } from "./EScanCLI";
+import { ETH_BNB } from "@uniswap/smart-order-router";
 class CustomProvider extends JsonRpcProvider {
-  readonly pool_provider: PoolProvider;
-  readonly token_provider: TokenProvider;
+  readonly pool_provider!: PoolProvider;
+  readonly token_provider!: TokenProvider;
+  readonly etherscan_provider!: EtherScanAPICLI;
   constructor(
     url: string,
     pool_provider: PoolProvider,
-    token_provider: TokenProvider
+    token_provider: TokenProvider,
+    etherscan_provider: EtherScanAPICLI
   ) {
     super(url);
     this.pool_provider = pool_provider;
     this.token_provider = token_provider;
+    this.etherscan_provider = etherscan_provider;
   }
 
   async getSwapRelatedLogs(
@@ -47,16 +49,16 @@ class CustomProvider extends JsonRpcProvider {
       toBlock: end_block_number,
       topics: [
         [
-          uniswap_v3_abi_decoder.getEvent("Swap")?.topicHash as string,
-          uniswap_v2_abi_decoder.getEvent("Swap")?.topicHash as string,
-          uniswap_v2_abi_decoder.getEvent("Sync")?.topicHash as string,
-          uniswap_v2_abi_decoder.getEvent("Mint")?.topicHash as string,
-          uniswap_v2_abi_decoder.getEvent("Burn")?.topicHash as string,
-          uniswap_v3_abi_decoder.getEvent("Mint")?.topicHash as string,
-          uniswap_v3_abi_decoder.getEvent("Burn")?.topicHash as string,
-          weth_abi_decoder.getEvent("Transfer")?.topicHash as string,
-          weth_abi_decoder.getEvent("Deposit")?.topicHash as string,
-          weth_abi_decoder.getEvent("Withdrawal")?.topicHash as string,
+          TOPICHASHTABLE.Burn,
+          TOPICHASHTABLE.Mint,
+          TOPICHASHTABLE.Swap,
+          TOPICHASHTABLE.Sync,
+          TOPICHASHTABLE.Transfer,
+          TOPICHASHTABLE.Deposit,
+          TOPICHASHTABLE.Withdrawal,
+          TOPICHASHTABLE.BurnV3,
+          TOPICHASHTABLE.MintV3,
+          TOPICHASHTABLE.SwapV3,
         ],
       ],
     });
@@ -113,8 +115,8 @@ class CustomProvider extends JsonRpcProvider {
     let nonce = tx?.nonce as number;
     return {
       priority_fee,
-      from,
-      to,
+      from: from.toLowerCase(),
+      to: to.toLowerCase(),
       nonce,
     };
   }
@@ -141,8 +143,8 @@ class CustomProvider extends JsonRpcProvider {
     let pool_token1_before_tx =
       sort_out_sync_info.pool_token1 - sort_out_info.amount1In;
     return {
-      sender: sort_out_info.sender,
-      to: sort_out_info.to,
+      sender: sort_out_info.sender.toLowerCase(),
+      to: sort_out_info.to.toLowerCase(),
       token0: pool.token0,
       token1: pool.token1,
       amount0In: sort_out_info.amount0In,
@@ -150,8 +152,9 @@ class CustomProvider extends JsonRpcProvider {
       pool: pool.pool,
       pool_token0: pool_token0_before_tx,
       pool_token1: pool_token1_before_tx,
-      type: "v2",
+      type: "SwapV2",
       tick: 0n,
+      index: combine_logs[1].index,
     };
   }
 
@@ -178,8 +181,8 @@ class CustomProvider extends JsonRpcProvider {
     //   formatUnits(sort_out_info.pool_token1, token1_decimals)
     // ).toFixed(6);
     return {
-      sender: sort_out_info.sender,
-      to: sort_out_info.to,
+      sender: sort_out_info.sender.toLowerCase(),
+      to: sort_out_info.to.toLowerCase(),
       token0: pool.token0,
       token1: pool.token1,
       amount0In: sort_out_info.amount0In,
@@ -187,8 +190,9 @@ class CustomProvider extends JsonRpcProvider {
       pool: pool.pool,
       pool_token0: sort_out_info.pool_token0,
       pool_token1: sort_out_info.pool_token1,
-      type: "v3",
+      type: "SwapV3",
       tick: sort_out_info.tick,
+      index: single_log.index,
     };
   }
 
@@ -203,14 +207,16 @@ class CustomProvider extends JsonRpcProvider {
     // let decimals = await this.getTokenDecimal(single_log.address);
     // let amount = formatUnits(decoded_log[2], decimals);
     return {
-      from: decoded_log[0],
-      to: decoded_log[1],
+      from: decoded_log[0].toLowerCase(),
+      to: decoded_log[1].toLowerCase(),
       amount: decoded_log[2],
-      token: single_log.address,
+      token: single_log.address.toLowerCase(),
+      type: "Transfer",
+      index: single_log.index,
     };
   }
 
-  async decodeDeposit(single_log: Log): Promise<interface_Deposit_Event_info> {
+  async decodeDeposit(single_log: Log): Promise<interface_Transfer_Event_info> {
     let decoded_log = weth_abi_decoder.decodeEventLog(
       "Deposit",
       single_log.data,
@@ -218,28 +224,38 @@ class CustomProvider extends JsonRpcProvider {
     );
     // let ether = formatUnits(decoded_log[1], "ether");
     return {
-      to: decoded_log[0],
+      from: decoded_log[0].toLowerCase(),
+      to: decoded_log[0].toLowerCase(),
+      // msg_sender: decoded_log[0],
       amount: decoded_log[1],
+      token: "native",
+      type: "Deposit",
+      index: single_log.index,
     };
   }
 
   async decodeWithdrawal(
     single_log: Log
-  ): Promise<interface_Withdrawal_Event_info> {
+  ): Promise<interface_Transfer_Event_info> {
     let decoded_log = weth_abi_decoder.decodeEventLog(
       "Withdrawal",
       single_log.data,
       single_log.topics
     );
     return {
-      from: decoded_log[0],
+      from: decoded_log[0].toLowerCase(),
+      to: decoded_log[0].toLowerCase(),
+      // msg_sender: decoded_log[0],
+      token: "native",
       amount: decoded_log[1],
+      type: "Withdrawal",
+      index: single_log.index,
     };
   }
 
   async decodeUniV3Mint(
     single_log: Log
-  ): Promise<interface_LiqAction_Event_V3_info> {
+  ): Promise<interface_LiqAction_Event_info> {
     let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
       "Mint",
       single_log.data,
@@ -247,7 +263,9 @@ class CustomProvider extends JsonRpcProvider {
     );
     let pool_tokens = await this.getUniPoolToken(single_log.address);
     return {
-      owner: decoded_log[0] as string,
+      sender: decoded_log[0].toLowerCase() as string,
+      to: decoded_log[1].toLowerCase() as string,
+      // owner: decoded_log[0] as string,
       pool: pool_tokens.pool,
       token0: pool_tokens.token0,
       token1: pool_tokens.token1,
@@ -255,14 +273,15 @@ class CustomProvider extends JsonRpcProvider {
       amount1In: decoded_log[6] as bigint,
       pool_token0: 0n,
       pool_token1: 0n,
-      type: "v3",
+      type: "LiqV3",
       tickUpper: decoded_log[3] as bigint,
       tickLower: decoded_log[2] as bigint,
+      index: single_log.index,
     };
   }
   async decodeUniV3Burn(
     single_log: Log
-  ): Promise<interface_LiqAction_Event_V3_info> {
+  ): Promise<interface_LiqAction_Event_info> {
     let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
       "Burn",
       single_log.data,
@@ -270,7 +289,9 @@ class CustomProvider extends JsonRpcProvider {
     );
     let pool_tokens = await this.getUniPoolToken(single_log.address);
     return {
-      owner: decoded_log[0] as string,
+      sender: decoded_log[0].toLowerCase() as string,
+      to: decoded_log[1].toLowerCase() as string,
+      // owner: decoded_log[0] as string,
       pool: pool_tokens.pool,
       token0: pool_tokens.token0,
       token1: pool_tokens.token1,
@@ -278,14 +299,17 @@ class CustomProvider extends JsonRpcProvider {
       amount1In: -(decoded_log[5] as bigint),
       pool_token0: 0n,
       pool_token1: 0n,
-      type: "v3",
+      type: "LiqV3",
       tickUpper: decoded_log[2] as bigint,
       tickLower: decoded_log[1] as bigint,
+      index: single_log.index,
     };
   }
   async decodeUniV2Mint(
-    combine_logs: Array<Log>
-  ): Promise<interface_LiqAction_Event_V2_info> {
+    // TODO:寻找从address出来的0地址到to地址的transfer，把to放到这个返回的to上面
+    combine_logs: Array<Log>,
+    array_info_before_this_logs: interface_info_type[]
+  ): Promise<interface_LiqAction_Event_info> {
     let decoded_log = uniswap_v2_abi_decoder.decodeEventLog(
       "Mint",
       combine_logs[1].data,
@@ -297,9 +321,35 @@ class CustomProvider extends JsonRpcProvider {
       combine_logs[0].topics
     );
     let pool_tokens = await this.getUniPoolToken(combine_logs[1].address);
+    //以下是找哪个是to_address_part
+    let pool_token_transfer_from_0Address: interface_Transfer_Event_info[] = [];
+    for (
+      let index = array_info_before_this_logs.length - 1;
+      (index = 0);
+      --index
+    ) {
+      if (array_info_before_this_logs[index].type === "Transfer") {
+        let now_transfer_info = array_info_before_this_logs[
+          index
+        ] as interface_Transfer_Event_info;
+        if (
+          now_transfer_info.from === ETH_MAINNET_CONSTANTS["0Address"] &&
+          now_transfer_info.token === pool_tokens.pool
+        ) {
+          pool_token_transfer_from_0Address.push(now_transfer_info);
+        } else if (
+          now_transfer_info.from !== ETH_MAINNET_CONSTANTS["0Address"]
+        ) {
+          break;
+        }
+      }
+    }
+    let to_address = pool_token_transfer_from_0Address.reduce((max, cur) => {
+      return cur.amount > max.amount ? cur : max;
+    }).to;
     return {
-      sender: decoded_log[0] as string,
-      to: "",
+      sender: decoded_log[0].toLowerCase() as string,
+      to: to_address,
       pool: pool_tokens.pool,
       token0: pool_tokens.token0,
       token1: pool_tokens.token1,
@@ -307,15 +357,16 @@ class CustomProvider extends JsonRpcProvider {
       amount1In: decoded_log[2],
       pool_token0: (decoded_log_sync[0] as bigint) - decoded_log[1],
       pool_token1: (decoded_log_sync[1] as bigint) - decoded_log[2],
-      type: "v2",
+      type: "LiqV2",
       tickUpper: 0n,
       tickLower: 0n,
+      index: combine_logs[1].index,
     };
   }
 
   async decodeUniV2Burn(
     combine_logs: Array<Log>
-  ): Promise<interface_LiqAction_Event_V2_info> {
+  ): Promise<interface_LiqAction_Event_info> {
     let decoded_log = uniswap_v2_abi_decoder.decodeEventLog(
       "Burn",
       combine_logs[1].data,
@@ -328,8 +379,8 @@ class CustomProvider extends JsonRpcProvider {
     );
     let pool_tokens = await this.getUniPoolToken(combine_logs[1].address);
     return {
-      sender: decoded_log[0] as string,
-      to: decoded_log[3] as string,
+      sender: decoded_log[0].toLowerCase() as string,
+      to: decoded_log[3].toLowerCase() as string,
       pool: pool_tokens.pool,
       token0: pool_tokens.token0,
       token1: pool_tokens.token1,
@@ -337,9 +388,10 @@ class CustomProvider extends JsonRpcProvider {
       amount1In: -(decoded_log[2] as bigint),
       pool_token0: decoded_log_sync[0] + decoded_log[1],
       pool_token1: decoded_log_sync[1] + decoded_log[2],
-      type: "v2",
+      type: "LiqV2",
       tickUpper: 0n,
       tickLower: 0n,
+      index: combine_logs[1].index,
     };
   }
 }

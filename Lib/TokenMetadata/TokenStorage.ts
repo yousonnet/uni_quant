@@ -15,7 +15,7 @@ async function getTokenMetadata(
     local_provider
   );
   let decimals = Number(await token_contract.decimals());
-  return { address: token_address, decimals };
+  return { address: token_address.toLowerCase(), decimals };
 }
 
 export { getTokenMetadata, interface_token };

@@ -7,6 +7,7 @@ import {
 import { local_provider } from "./ProviderSetup";
 import { Token, ChainId } from "@uniswap/sdk";
 import Decimal from "decimal.js";
+import { interface_Transfer_Event_info } from "./TypeAndInterface";
 // interface interface_swap_abstract {
 //   //   sender: Array<{ address: string; amount: number }>;
 //   receiver: Array<{ address: string; amount: number }>;

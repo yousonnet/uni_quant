@@ -1,4 +1,5 @@
 import { SwapSequencer } from "./Lib/UniSwapSequenceSort";
+import { TxReasoning } from "./Lib/SupplementInfo";
 import Decimal from "decimal.js";
 import { decode } from "punycode";
 import { default_provider } from "./Lib/ProviderSetup";
@@ -9,13 +10,15 @@ import { CustomProvider } from "./Lib/ProviderExtends";
 import test from "node:test";
 import { formatUnits, ethers, Log } from "ethers";
 import {
+  ETH_MAINNET_CONSTANTS,
   uniswap_v2_abi_decoder,
   uniswap_v3_abi_decoder,
   weth_abi_decoder,
 } from "./Lib/BasisConstants";
-import { getInternalTxFromBlockRange } from "./Lib/EScanCLI";
+import { etherscan_cli } from "./Lib/EScanCLI";
 import { Trade } from "@uniswap/sdk";
 import { sortUniV3SwapInfo } from "./Lib/UniSwapSorts";
+// import { parseAllToEnd } from "./Lib/TypeAndInterface";
 async function main() {
   console.time();
   // local_custom_provider.getBlockConsumedGas(18542299).then((res) => {
@@ -33,16 +36,41 @@ async function main() {
   let test_custom_provider = new CustomProvider(
     "http://127.0.0.1:3334",
     pool_provider,
-    token_provider
+    token_provider,
+    etherscan_cli
   );
-  let logs = await test_custom_provider.getSwapRelatedLogs(17176506, 17176506);
-  let internal_txs = await getInternalTxFromBlockRange(17176506, 17176506, 1);
-  let test_swap_sequencer = new SwapSequencer(
-    logs,
-    internal_txs,
-    test_custom_provider
+  // let logs = await test_custom_provider.getSwapRelatedLogs(17176506, 17176506);
+  // let internal_txs = await etherscan_cli.getInternalTxFromBlockRange(17176506, 17176506, 1);
+  // console.log(internal_txs);
+  // let test_swap_sequencer = new SwapSequencer(
+  //   logs,
+  //   internal_txs,
+  //   // test_custom_provider
+  // );
+  // let log = test_swap_sequencer.map_logs_divided;
+  // let _log = log.get(
+  //   "0xba59fb0ddccca42ab77d6c2fd0dcba3146bfeccad0a5fd8b2dc2b5d792cf759b"
+  // );
+  let test_swap_sequencer = new SwapSequencer([], [], test_custom_provider);
+  let logs = (
+    await test_custom_provider.getTransactionReceipt(
+      "0xb41cb99c75a5db9d2a5cb6fc40bb9342f4d2d799f378fe8de3fc5784d001c29b"
+    )
+  )?.logs;
+  let internal_tsx = await etherscan_cli.getInternalTxByHash(
+    "0xb41cb99c75a5db9d2a5cb6fc40bb9342f4d2d799f378fe8de3fc5784d001c29b"
   );
-  let log = test_swap_sequencer.map_logs_divided;
+  let info = await test_swap_sequencer.forLogsArrayToInfo(logs as Array<Log>);
+  let info_reasoned = new TxReasoning(info, internal_tsx);
+  // let result = parseAllToEnd(info);
+  // for (let address in result) {
+  //   let isPoolAddress = result[address].isSwapProb();
+  //   console.log(isPoolAddress, address);
+  // }
+  console.log(info_reasoned.format_all_info);
+  console.log(info);
+  // console.log(result);
+  // console.log(info);
   // for (let i = 0; i <= log.size; i++) {
   //   if (i == 1) {
   //     let ir = await test_custom_provider.decodeV2Swap(
@@ -65,13 +93,15 @@ async function main() {
   // console.log(ir);
   // console.log(ir2);
   // console.log(Array.from(log.entries())[0][1]);
-  let log_burn = (
-    await test_custom_provider.getTransactionReceipt(
-      "0x51cc837e294f26477cdefc057e55a6cd8d9ac98d5c1b73d72c60f47f5cf556bf"
-    )
-  )?.logs.slice(5, 7) as Array<Log>;
-  let decoded = await test_custom_provider.decodeUniV2Burn(log_burn);
-  console.log(decoded);
+
+  // let log_burn = (
+  //   await test_custom_provider.getTransactionReceipt(
+  //     "0x51cc837e294f26477cdefc057e55a6cd8d9ac98d5c1b73d72c60f47f5cf556bf"
+  //   )
+  // )?.logs.slice(5, 7) as Array<Log>;
+  // let decoded = await test_custom_provider.decodeUniV2Burn(log_burn);
+  // console.log(decoded);
+
   // let res3 = await test_custom_provider.getLogs({
   //   topics: [[uniswap_v2_abi_decoder.getEvent("Burn")?.topicHash as string]],
   //   fromBlock: 18591380,
@@ -115,16 +145,16 @@ main();
 interface unmutable {}
 
 async function main2() {
-  console.time();
-  let res = await TokenProvider.getAllTokensFromDB();
-  let token_provider = new TokenProvider(res);
-  let res1 = await PoolProvider.getAllPoolsFromDB();
-  let pool_provider = new PoolProvider(res1);
-  let test_custom_provider = new CustomProvider(
-    "http://127.0.0.1:3334",
-    pool_provider,
-    token_provider
-  );
+  // console.time();
+  // let res = await TokenProvider.getAllTokensFromDB();
+  // let token_provider = new TokenProvider(res);
+  // let res1 = await PoolProvider.getAllPoolsFromDB();
+  // let pool_provider = new PoolProvider(res1);
+  // let test_custom_provider = new CustomProvider(
+  //   "http://127.0.0.1:3334",
+  //   pool_provider,
+  //   token_provider
+  // );
   // await test_custom_provider
   //   .send("debug_traceTransaction", [
   //     "0xefadcdb2362d304ee37eb8ebf8b4e000a49be5adfddd3d1d51e5a01a4a7252b2",
