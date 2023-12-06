@@ -33,6 +33,11 @@ class TxReasoning {
     >(2);
     initIdentifyParameters();
     let if_has_mint = { hasMint: false, to: "test", pool: "test_pool_token" };
+    let if_has_burn = {
+      hasBurn: false,
+      from: "test3",
+      pool: "test_pool_token3",
+    };
     let is_after_orthodox_info = false;
     let previous_formal_swap_receiver: string[] = [];
     for (let index = 0; index < array_info.length; ++index) {
@@ -48,7 +53,7 @@ class TxReasoning {
         now_info_type.type === "LiqV2" ||
         now_info_type.type === "LiqV3"
       ) {
-        initIdentifyParameters(true);
+        initIdentifyParameters(true, true);
         previous_formal_swap_receiver.push(
           (now_info_type as interface_LiqAction_Event_info).to
         );
@@ -75,6 +80,12 @@ class TxReasoning {
             to: now_info.to,
             pool: now_info.token,
           };
+        } else if (now_info.to === ETH_MAINNET_CONSTANTS["0Address"]) {
+          if_has_burn = {
+            hasBurn: true,
+            from: now_info.from,
+            pool: now_info.token,
+          };
         } else {
           let result_0 = this.fakeSwapIdentify(
             same_depth_block_transfer_action.array[0],
@@ -85,21 +96,37 @@ class TxReasoning {
             array_info.splice(index + 1, 0, result_0.info);
             initIdentifyParameters();
           }
-          let result_1 = this.fakeMintIdentify(
-            same_depth_block_transfer_action.array[0],
-            same_depth_block_transfer_action.array[1],
-            if_has_mint,
-            previous_formal_swap_receiver
-          );
-          if (result_1.isOtherMint) {
-            array_info.splice(index + 1, 0, result_1.info);
-            initIdentifyParameters(true);
+          if (if_has_mint.hasMint) {
+            let result_1 = this.fakeMintIdentify(
+              same_depth_block_transfer_action.array[0],
+              same_depth_block_transfer_action.array[1],
+              if_has_mint,
+              previous_formal_swap_receiver
+            );
+            if (result_1.isOtherMint) {
+              array_info.splice(index + 1, 0, result_1.info);
+              initIdentifyParameters(true);
+            }
+          } else if (if_has_burn.hasBurn) {
+            let result_2 = this.fakeBurnIdentify(
+              same_depth_block_transfer_action.array[0],
+              same_depth_block_transfer_action.array[1],
+              if_has_burn,
+              previous_formal_swap_receiver
+            );
+            if (result_2.isOtherBurn) {
+              array_info.splice(index + 1, 0, result_2.info);
+              initIdentifyParameters(false, true);
+            }
           }
         }
         same_depth_block_transfer_action.add([now_info]);
       }
     }
-    function initIdentifyParameters(also_mint: boolean = false) {
+    function initIdentifyParameters(
+      also_mint: boolean = false,
+      also_burn: boolean = false
+    ) {
       same_depth_block_transfer_action.add([
         {
           from: "test0",
@@ -123,8 +150,76 @@ class TxReasoning {
       if (also_mint) {
         if_has_mint = { hasMint: false, to: "test", pool: "test_pool_token" };
       }
+      if (also_burn) {
+        if_has_burn = {
+          hasBurn: false,
+          from: "test3",
+          pool: "test_pool_token3",
+        };
+      }
     }
     return array_info;
+  }
+  private fakeBurnIdentify(
+    pos0_transfer_block: interface_Transfer_Event_info[],
+    pos1_transfer_block: interface_Transfer_Event_info[],
+    if_has_burn: { hasBurn: boolean; from: string; pool: string },
+    previous_swap_or_liq_to_receiver: string[]
+  ): { info: interface_conceived_Liq_Event_info; isOtherBurn: boolean } {
+    let transfer_0_out = pos0_transfer_block.find((item) =>
+      previous_swap_or_liq_to_receiver.includes(item.to)
+    );
+    let transfer_1_out = pos1_transfer_block.find((item) =>
+      previous_swap_or_liq_to_receiver.includes(item.to)
+    );
+    if (
+      transfer_0_out &&
+      transfer_1_out &&
+      transfer_0_out.from === transfer_1_out.from &&
+      transfer_0_out.to === transfer_1_out.to &&
+      if_has_burn.hasBurn &&
+      transfer_0_out.from === if_has_burn.pool
+      // &&
+      // if_has_burn.from === if_has_burn.pool
+    ) {
+      return {
+        info: {
+          sender: "",
+          to: transfer_0_out.to,
+          pool: if_has_burn.pool,
+          token0: transfer_0_out.token,
+          token1: transfer_1_out.token,
+          amount0In: -transfer_0_out.amount,
+          amount1In: -transfer_1_out.amount,
+          pool_token0: 0n,
+          pool_token1: 0n,
+          type: "OtherLiq",
+          tickUpper: 0n,
+          tickLower: 0n,
+          index: 0,
+        },
+        isOtherBurn: true,
+      };
+    } else {
+      return {
+        info: {
+          sender: "",
+          to: "",
+          pool: "",
+          token0: "",
+          token1: "",
+          amount0In: 0n,
+          amount1In: 0n,
+          pool_token0: 0n,
+          pool_token1: 0n,
+          type: "OtherLiq",
+          tickUpper: 0n,
+          tickLower: 0n,
+          index: 0,
+        },
+        isOtherBurn: false,
+      };
+    }
   }
   private fakeMintIdentify(
     pos0_transfer_block: interface_Transfer_Event_info[],
@@ -148,10 +243,13 @@ class TxReasoning {
       transfer_0.from === transfer_1.from &&
       previous_swap_or_liq_to_receiver.includes(transfer_0.from)
     ) {
+      let router_address = previous_swap_or_liq_to_receiver.find(
+        (item) => item === transfer_0!.from
+      )!;
       return {
         info: {
           sender: "",
-          to: "",
+          to: router_address,
           pool: transfer_1.to,
           token0: transfer_0.token,
           token1: transfer_1.token,
@@ -201,10 +299,13 @@ class TxReasoning {
       pos0_topos1 &&
       previous_swap_or_liq_to_address.includes(pos0_topos1.from)
     ) {
+      let router_address = previous_swap_or_liq_to_address.find(
+        (item) => item === pos0_topos1!.from
+      )!;
       return {
         info: {
           sender: "",
-          to: "",
+          to: router_address,
           pool: pos0_topos1.to,
           token0: pos0_topos1.token,
           token1: pos1_transfer_block[0].token,
@@ -224,10 +325,13 @@ class TxReasoning {
       pos1_topos0 &&
       previous_swap_or_liq_to_address.includes(pos1_topos0.from)
     ) {
+      let router_address = previous_swap_or_liq_to_address.find(
+        (item) => item === pos1_topos0!.from
+      )!;
       return {
         info: {
           sender: "",
-          to: "",
+          to: router_address,
           pool: pos1_topos0.to,
           token0: pos1_topos0.token,
           token1: pos0_transfer_block[0].token,

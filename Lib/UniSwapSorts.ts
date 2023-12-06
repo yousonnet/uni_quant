@@ -1,5 +1,6 @@
 import { Contract, Log } from "ethers";
 import {
+  TOPICHASHTABLE,
   uniswap_v2_abi_decoder,
   uniswap_v3_abi_decoder,
   weth_abi_decoder,
@@ -145,26 +146,28 @@ function reDivideArray<T extends { [key: string]: any }>(
 function deletePureTransferTxFromMap(
   map_type_logs_divide: Map<string, Array<Log>>
 ) {
-  let non_swap_topics: string[] = [
-    weth_abi_decoder.getEvent("Transfer")?.topicHash as string,
-    weth_abi_decoder.getEvent("Deposit")?.topicHash as string,
-    weth_abi_decoder.getEvent("Withdrawal")?.topicHash as string,
+  let swap_topics: string[] = [
+    // TOPICHASHTABLE.Withdrawal,
+    // TOPICHASHTABLE.Deposit,
+    // TOPICHASHTABLE.Transfer,
+    // TOPICHASHTABLE.Sync,
+    TOPICHASHTABLE.Burn,
+    TOPICHASHTABLE.BurnV3,
+    TOPICHASHTABLE.Mint,
+    TOPICHASHTABLE.MintV3,
+    TOPICHASHTABLE.Swap,
+    TOPICHASHTABLE.SwapV3,
+    //TODO:类似于fraxswap这种可能会有单个sync存在
   ];
   for (let tx_logs of map_type_logs_divide) {
-    let transfer_mark = false;
+    let swap_mark = false;
     for (let log of tx_logs[1]) {
-      if (
-        !(
-          // log.topics[0] ===
-          // (weth_abi_decoder.getEvent("Transfer")?.topicHash as string)
-          non_swap_topics.includes(log.topics[0])
-        )
-      ) {
-        transfer_mark = true;
+      if (swap_topics.includes(log.topics[0])) {
+        swap_mark = true;
         break;
       }
     }
-    if (!transfer_mark) {
+    if (!swap_mark) {
       map_type_logs_divide.delete(tx_logs[0]);
     }
   }

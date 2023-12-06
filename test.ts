@@ -54,13 +54,15 @@ async function main() {
   let test_swap_sequencer = new SwapSequencer([], [], test_custom_provider);
   let logs = (
     await test_custom_provider.getTransactionReceipt(
-      "0xb41cb99c75a5db9d2a5cb6fc40bb9342f4d2d799f378fe8de3fc5784d001c29b"
+      "0x6cf62da7186874a5cdd5be3b65cc20511a101962a00b9aa975115a540a0ff2cd"
     )
   )?.logs;
   let internal_tsx = await etherscan_cli.getInternalTxByHash(
-    "0xb41cb99c75a5db9d2a5cb6fc40bb9342f4d2d799f378fe8de3fc5784d001c29b"
+    "0x6cf62da7186874a5cdd5be3b65cc20511a101962a00b9aa975115a540a0ff2cd"
   );
   let info = await test_swap_sequencer.forLogsArrayToInfo(logs as Array<Log>);
+  // console.log(info);
+  console.log(info);
   let info_reasoned = new TxReasoning(info, internal_tsx);
   // let result = parseAllToEnd(info);
   // for (let address in result) {
@@ -68,7 +70,6 @@ async function main() {
   //   console.log(isPoolAddress, address);
   // }
   console.log(info_reasoned.format_all_info);
-  console.log(info);
   // console.log(result);
   // console.log(info);
   // for (let i = 0; i <= log.size; i++) {

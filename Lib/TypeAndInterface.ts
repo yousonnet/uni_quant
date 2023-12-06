@@ -32,7 +32,7 @@ interface interface_swap_info extends interface_info_type {
 
 interface interface_conceived_swap_info extends interface_swap_info {
   sender: "";
-  to: "";
+  // to: "";
   pool_token0: 0n;
   pool_token1: 0n;
   type: "Other";
@@ -63,10 +63,30 @@ interface interface_LiqAction_Event_info extends interface_info_type {
   index: number;
 }
 
+interface interface_general_info {
+  sender: string;
+  to: string;
+  pool: string;
+  token0: string;
+  token1: string;
+  amount0In: bigint;
+  amount1In: bigint;
+  pool_token0: bigint;
+  pool_token1: bigint;
+  type: "SwapV2" | "SwapV3" | "Other" | "LiqV2" | "LiqV3" | "OtherLiq";
+  tick: bigint;
+  tickUpper: bigint;
+  tickLower: bigint;
+  index: number;
+  routerTaxedAmountOfContract: number;
+  poolTaxed: number;
+  isMultiReceive: boolean;
+  proportion: number;
+}
 interface interface_conceived_Liq_Event_info
   extends interface_LiqAction_Event_info {
   sender: "";
-  to: "";
+  // to: string;
   pool_token0: 0n;
   pool_token1: 0n;
   type: "OtherLiq";
@@ -121,5 +141,6 @@ export {
   interface_conceived_Liq_Event_info,
   interface_conceived_swap_info,
   interface_info_type,
+  interface_general_info,
 };
 // export type { type_info };

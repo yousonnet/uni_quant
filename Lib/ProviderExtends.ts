@@ -126,18 +126,6 @@ class CustomProvider extends JsonRpcProvider {
     // let token1_decimals = await this.getTokenDecimal(pool.token1);
     let sort_out_info = sortUniV2SwapInfo(combine_logs[1]);
     let sort_out_sync_info = sortUniV2SyncInfo(combine_logs[0]);
-    // let pool_token0 = new Decimal(
-    //   formatUnits(sort_out_sync_info.pool_token0, token0_decimals)
-    // ).toFixed(6);
-    // let pool_token1 = new Decimal(
-    //   formatUnits(sort_out_sync_info.pool_token1, token1_decimals)
-    // ).toFixed(6);
-    // let amount0In = new Decimal(
-    //   formatUnits(sort_out_info.amount0In, token0_decimals)
-    // ).toFixed(6);
-    // let amount1In = new Decimal(
-    //   formatUnits(sort_out_info.amount1In, token1_decimals)
-    // ).toFixed(6);
     let pool_token0_before_tx =
       sort_out_sync_info.pool_token0 - sort_out_info.amount0In;
     let pool_token1_before_tx =
@@ -159,27 +147,8 @@ class CustomProvider extends JsonRpcProvider {
   }
 
   async decodeV3Swap(single_log: Log): Promise<interface_swap_info> {
-    // let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
-    //   "Swap",
-    //   single_log.data,
-    //   single_log.topics
-    // );
     let pool = await this.pool_provider.getPool(single_log.address);
-    // let token0_decimals = await this.getTokenDecimal(pool.token0);
-    // let token1_decimals = await this.getTokenDecimal(pool.token1);
     let sort_out_info = sortUniV3SwapInfo(single_log);
-    // let amount0In = new Decimal(
-    //   formatUnits(sort_out_info.amount0In, token0_decimals)
-    // ).toFixed(6);
-    // let amount1In = new Decimal(
-    //   formatUnits(sort_out_info.amount1In, token1_decimals)
-    // ).toFixed(6);
-    // let pool_token0 = new Decimal(
-    //   formatUnits(sort_out_info.pool_token0, token0_decimals)
-    // ).toFixed(6);
-    // let pool_token1 = new Decimal(
-    //   formatUnits(sort_out_info.pool_token1, token1_decimals)
-    // ).toFixed(6);
     return {
       sender: sort_out_info.sender.toLowerCase(),
       to: sort_out_info.to.toLowerCase(),
@@ -325,7 +294,7 @@ class CustomProvider extends JsonRpcProvider {
     let pool_token_transfer_from_0Address: interface_Transfer_Event_info[] = [];
     for (
       let index = array_info_before_this_logs.length - 1;
-      (index = 0);
+      index >= 0;
       --index
     ) {
       if (array_info_before_this_logs[index].type === "Transfer") {
@@ -344,9 +313,12 @@ class CustomProvider extends JsonRpcProvider {
         }
       }
     }
-    let to_address = pool_token_transfer_from_0Address.reduce((max, cur) => {
-      return cur.amount > max.amount ? cur : max;
-    }).to;
+    let to_address =
+      pool_token_transfer_from_0Address.length === 1
+        ? pool_token_transfer_from_0Address[0].to
+        : pool_token_transfer_from_0Address.reduce((max, cur) => {
+            return cur.amount > max.amount ? cur : max;
+          }).to;
     return {
       sender: decoded_log[0].toLowerCase() as string,
       to: to_address,
