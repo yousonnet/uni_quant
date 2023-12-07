@@ -1,47 +1,52 @@
+// import {
+//   interface_conceived_Liq_Event_info,
+//   interface_general_info,
+//   interface_internal_tx_info_from_etherscan,
+//   interface_LiqAction_Event_info,
+//   interface_swap_info,
+//   interface_transfer_info,
+//   interface_true_swap_info,
+//   interface_true_LiqAction_Event_info,
+//   interface_general_action_info,
+// } from "./TypeAndInterface";
 import {
-  interface_conceived_Liq_Event_info,
-  interface_info_type,
-  interface_internal_tx_info_from_etherscan,
-  interface_LiqAction_Event_info,
-  interface_swap_info,
-  interface_Transfer_Event_info,
-  interface_true_swap_info,
-  interface_true_LiqAction_Event_info,
-  interface_general_action_info,
-} from "./TypeAndInterface";
-import { ETH_MAINNET_CONSTANTS } from "./BasisConstants";
+  interface_fake_events_info,
+  interface_pruned_internal_tx_info,
+  interface_transfer_info,
+} from "./interface/UniEventsInterfaces";
+import { ETH_MAINNET_CONSTANTS } from "./constants/BasisConstants";
 import { FixedLengthArray } from "./basisUtils";
+import { interface_general_info } from "./interface/UniEventsInterfaces";
+// function isTrueSwapInfo(
+//   info: interface_info_type
+// ): info is interface_true_swap_info {
+//   return info.type === "SwapV2" || info.type === "SwapV3";
+// }
+// function isTransferInfo(
+//   info: interface_info_type
+// ): info is interface_Transfer_Event_info {
+//   return (
+//     info.type === "Transfer" ||
+//     info.type === "Withdrawal" ||
+//     info.type === "Deposit"
+//   );
+// }
 
-function isTrueSwapInfo(
-  info: interface_info_type
-): info is interface_true_swap_info {
-  return info.type === "SwapV2" || info.type === "SwapV3";
-}
-function isTransferInfo(
-  info: interface_info_type
-): info is interface_Transfer_Event_info {
-  return (
-    info.type === "Transfer" ||
-    info.type === "Withdrawal" ||
-    info.type === "Deposit"
-  );
-}
-
-function isTrueLiqInfo(
-  info: interface_info_type
-): info is interface_true_LiqAction_Event_info {
-  return info.type === "LiqV2" || info.type === "LiqV3";
-}
+// function isTrueLiqInfo(
+//   info: interface_info_type
+// ): info is interface_true_LiqAction_Event_info {
+//   return info.type === "LiqV2" || info.type === "LiqV3";
+// }
 
 class TxReasoning {
   // readonly logs!: Log[];
-  format_all_info!: interface_info_type[];
+  format_all_info!: interface_general_info[];
   constructor(
-    array_info: interface_info_type[],
-    internal_txs: interface_internal_tx_info_from_etherscan[]
+    array_info: interface_general_info[],
+    internal_txs: interface_pruned_internal_tx_info[]
   ) {
     // this.logs = logs;
-    let format_internal_txs = this.formatInternalTransfer(internal_txs);
+    let format_internal_txs = internal_txs;
     array_info = this.supplementOtherSwapAndV2TypeMint(array_info);
     this.format_all_info = this.combineLogsAndInternalTxs(
       array_info,
@@ -50,11 +55,11 @@ class TxReasoning {
   }
 
   private supplementOtherSwapAndV2TypeMint(
-    array_info: interface_info_type[]
-  ): interface_info_type[] {
+    array_info: interface_general_info[]
+  ): interface_general_info[] {
     //这个method 只适用于同logs里由uniswap的 action然后再有other swap 的action时，才能identify。
     let same_depth_block_transfer_action = new FixedLengthArray<
-      interface_Transfer_Event_info[]
+      interface_transfer_info[]
     >(2);
     initIdentifyParameters();
     let if_has_mint = { hasMint: false, to: "test", pool: "test_pool_token" };
@@ -67,19 +72,22 @@ class TxReasoning {
     let previous_formal_swap_receiver: string[] = [];
     for (let index = 0; index < array_info.length; ++index) {
       let now_info_type = array_info[index];
-      if (isTrueSwapInfo(now_info_type)) {
+      if (now_info_type.type === "SwapV2" || now_info_type.type === "SwapV3") {
         initIdentifyParameters();
         is_after_orthodox_info = true;
         previous_formal_swap_receiver.push(now_info_type.to);
         continue;
-      } else if (isTrueLiqInfo(now_info_type)) {
+      } else if (
+        now_info_type.type === "LiqV2" ||
+        now_info_type.type === "LiqV3"
+      ) {
         initIdentifyParameters(true, true);
         previous_formal_swap_receiver.push(now_info_type.to);
         is_after_orthodox_info = true;
         continue;
       }
       //检测了其他两类都不是自然就是第三类
-      if (!isTransferInfo(now_info_type)) {
+      if (!(now_info_type.type === "Transfer")) {
         continue;
       }
       let now_info = now_info_type;
@@ -185,11 +193,11 @@ class TxReasoning {
     return array_info;
   }
   private fakeBurnIdentify(
-    pos0_transfer_block: interface_Transfer_Event_info[],
-    pos1_transfer_block: interface_Transfer_Event_info[],
+    pos0_transfer_block: interface_transfer_info[],
+    pos1_transfer_block: interface_transfer_info[],
     if_has_burn: { hasBurn: boolean; from: string; pool: string },
     previous_swap_or_liq_to_receiver: string[]
-  ): { info: interface_conceived_Liq_Event_info; isOtherBurn: boolean } {
+  ): { info: interface_fake_events_info; isOtherBurn: boolean } {
     let transfer_0_out = pos0_transfer_block.find((item) =>
       previous_swap_or_liq_to_receiver.includes(item.to)
     );
@@ -248,11 +256,11 @@ class TxReasoning {
     }
   }
   private fakeMintIdentify(
-    pos0_transfer_block: interface_Transfer_Event_info[],
-    pos1_transfer_block: interface_Transfer_Event_info[],
+    pos0_transfer_block: interface_transfer_info[],
+    pos1_transfer_block: interface_transfer_info[],
     if_has_mint: { hasMint: boolean; to: string; pool: string },
     previous_swap_or_liq_to_receiver: string[]
-  ): { info: interface_conceived_Liq_Event_info; isOtherMint: boolean } {
+  ): { info: interface_fake_events_info; isOtherMint: boolean } {
     // pos0_transfer_block.forEach((item, index) => {
     //   if (pos1_transfer_block.map((ite) => ite.to).includes(item.to) &&if_has_mint.hasMint === true) {
     //     let transfer_1 = pos1_transfer_block.find((ite) => ite.to === item.to)!;
@@ -313,10 +321,10 @@ class TxReasoning {
     };
   }
   private fakeSwapIdentify(
-    pos0_transfer_block: interface_Transfer_Event_info[],
-    pos1_transfer_block: interface_Transfer_Event_info[],
+    pos0_transfer_block: interface_transfer_info[],
+    pos1_transfer_block: interface_transfer_info[],
     previous_swap_or_liq_to_address: string[]
-  ): { info: interface_swap_info; isOtherSwap: boolean } {
+  ): { info: interface_fake_events_info; isOtherSwap: boolean } {
     let pos0_topos1 = pos0_transfer_block.find(
       (item) => item.to === pos1_transfer_block[0].from
     );
@@ -401,25 +409,25 @@ class TxReasoning {
     };
   }
   // 如果第一个transfer 是deposit的话，那么是无法cover deposit以上的transfer的，因为deposit只能insert一个transfer，
-  private formatInternalTransfer(
-    internal_txs: interface_internal_tx_info_from_etherscan[]
-  ): interface_Transfer_Event_info[] {
-    return internal_txs.map((internal_tx) => {
-      return {
-        from: internal_tx.from,
-        to: internal_tx.to,
-        amount: BigInt(internal_tx.value),
-        token: ETH_MAINNET_CONSTANTS.WETH.ADDRESS,
-        type: "Transfer",
-        index: 0,
-      };
-    });
-  }
+  // private formatInternalTransfer(
+  //   internal_txs: interface_internal_tx_info_from_etherscan[]
+  // ): interface_transfer_info[] {
+  //   return internal_txs.map((internal_tx) => {
+  //     return {
+  //       from: internal_tx.from,
+  //       to: internal_tx.to,
+  //       amount: BigInt(internal_tx.value),
+  //       token: ETH_MAINNET_CONSTANTS.WETH.ADDRESS,
+  //       type: "Transfer",
+  //       index: 0,
+  //     };
+  //   });
+  // }
 
   private combineLogsAndInternalTxs(
-    array_info: interface_info_type[],
-    format_internal_txs: interface_Transfer_Event_info[]
-  ): interface_info_type[] {
+    array_info: interface_general_info[],
+    format_internal_txs: interface_transfer_info[]
+  ): interface_general_info[] {
     let breakpoint: {
       amount: bigint;
       type: "Withdrawal" | "Deposit";
@@ -473,4 +481,7 @@ class TxReasoning {
     return array_info;
   }
 }
-export { TxReasoning, isTransferInfo, isTrueLiqInfo, isTrueSwapInfo };
+export {
+  TxReasoning,
+  // , isTransferInfo, isTrueLiqInfo, isTrueSwapInfo
+};

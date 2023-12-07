@@ -1,5 +1,5 @@
 import { local_provider } from "../ProviderSetup";
-import { uniswap_v3_abi_decoder } from "../BasisConstants";
+import { uniswap_v3_abi_decoder } from "../constants/BasisConstants";
 import { Contract } from "ethers";
 
 interface interface_pool_tokens {

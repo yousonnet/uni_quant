@@ -1,5 +1,5 @@
 import { local_provider } from "../ProviderSetup";
-import { weth_abi_decoder } from "../BasisConstants";
+import { weth_abi_decoder } from "../constants/BasisConstants";
 import { Contract } from "ethers";
 interface interface_token {
   address: string;

@@ -8,7 +8,7 @@ import {
   interface_general_info_wrapped,
 } from "./TypeAndInterface";
 import { tradeComparator } from "@uniswap/v3-sdk";
-import { ETH_MAINNET_CONSTANTS } from "./BasisConstants";
+import { ETH_MAINNET_CONSTANTS } from "./constants/BasisConstants";
 import { isTransferInfo } from "./SupplementInfo";
 
 class TransferTOPO {

@@ -1,8 +1,13 @@
 import axios from "axios";
 import "dotenv/config";
 import { sleepWhile } from "./basisUtils";
-import { interface_internal_tx_info_from_etherscan } from "./TypeAndInterface";
+// import { interface_internal_tx_info_from_etherscan } from "./TypeAndInterface";
+import {
+  interface_internal_tx_info_from_etherscan,
+  interface_pruned_internal_tx_info,
+} from "./interface/UniEventsInterfaces";
 import { AxiosResponse, AxiosInstance } from "axios";
+import { ETH_MAINNET_CONSTANTS } from "./constants/BasisConstants";
 const E_SCAN_API_KEY = process.env.E_SCAN_API_KEY as string;
 
 class EtherScanAPICLI {
@@ -53,7 +58,7 @@ class EtherScanAPICLI {
     start_block_number: number,
     end_block_number: number,
     duration_number: number
-  ): Promise<interface_internal_tx_info_from_etherscan[]> {
+  ): Promise<interface_pruned_internal_tx_info[]> {
     let mod = Math.floor(
       (end_block_number - start_block_number) / duration_number
     );
@@ -107,7 +112,16 @@ class EtherScanAPICLI {
         total_res = total_res.concat(axios_response.data.result);
       }
     }
-    return total_res;
+    return total_res.map((internal_tx) => {
+      return {
+        from: internal_tx.from,
+        to: internal_tx.to,
+        amount: BigInt(internal_tx.value),
+        token: ETH_MAINNET_CONSTANTS.WETH.ADDRESS,
+        type: "Transfer",
+        index: 0,
+      };
+    });
   }
 }
 // getInternalTxFromBlockRange(18579866, 18579866, 1).then((res) =>
