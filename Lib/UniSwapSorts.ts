@@ -56,6 +56,7 @@ function sortUniV2SyncInfo(log: Log): {
     pool_token1: decoded_log[1],
   };
 }
+
 function sortUniV3SwapInfo(log: Log): {
   amount0In: bigint;
   amount1In: bigint;
@@ -127,7 +128,7 @@ function sortUniV3SwapInfo(log: Log): {
     tick: decoded_log[6],
   };
 }
-
+// TODO:给底层的返回的类型添加一个底层interface 直接用来as
 function reDivideArray<T extends { [key: string]: any }>(
   array: T[],
   same_prop: string
@@ -174,43 +175,43 @@ function deletePureTransferTxFromMap(
   return map_type_logs_divide;
 }
 
-function decodeUniActionInTheBlock(logs: Log[]): void {
-  let swap_number: number = 0;
-  for (let log of logs) {
-    if (
-      log.topics[0] ===
-      (uniswap_v2_abi_decoder.getEvent("Swap")?.topicHash as string)
-    ) {
-      let decoded_log = uniswap_v2_abi_decoder.decodeEventLog(
-        "Swap",
-        log.data,
-        log.topics
-      );
-      // console.log(decoded_log);
-      swap_number++;
-    } else if (
-      log.topics[0] ===
-      (uniswap_v3_abi_decoder.getEvent("Swap")?.topicHash as string)
-    ) {
-      let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
-        "Swap",
-        log.data,
-        log.topics
-      );
-      // console.log(decoded_log);
-      swap_number++;
-    }
-  }
-  if (swap_number >= 2) {
-    console.log(logs);
-  }
-}
+// function decodeUniActionInTheBlock(logs: Log[]): void {
+//   let swap_number: number = 0;
+//   for (let log of logs) {
+//     if (
+//       log.topics[0] ===
+//       (uniswap_v2_abi_decoder.getEvent("Swap")?.topicHash as string)
+//     ) {
+//       let decoded_log = uniswap_v2_abi_decoder.decodeEventLog(
+//         "Swap",
+//         log.data,
+//         log.topics
+//       );
+//       // console.log(decoded_log);
+//       swap_number++;
+//     } else if (
+//       log.topics[0] ===
+//       (uniswap_v3_abi_decoder.getEvent("Swap")?.topicHash as string)
+//     ) {
+//       let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
+//         "Swap",
+//         log.data,
+//         log.topics
+//       );
+//       // console.log(decoded_log);
+//       swap_number++;
+//     }
+//   }
+//   if (swap_number >= 2) {
+//     console.log(logs);
+//   }
+// }
 
 export {
   sortUniV2SwapInfo,
   sortUniV3SwapInfo,
   reDivideArray,
   deletePureTransferTxFromMap,
-  decodeUniActionInTheBlock,
+  // decodeUniActionInTheBlock,
   sortUniV2SyncInfo,
 };

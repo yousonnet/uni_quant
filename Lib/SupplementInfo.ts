@@ -5,10 +5,34 @@ import {
   interface_LiqAction_Event_info,
   interface_swap_info,
   interface_Transfer_Event_info,
+  interface_true_swap_info,
+  interface_true_LiqAction_Event_info,
+  interface_general_action_info,
 } from "./TypeAndInterface";
 import { ETH_MAINNET_CONSTANTS } from "./BasisConstants";
 import { FixedLengthArray } from "./basisUtils";
-import { forEach } from "lodash";
+
+function isTrueSwapInfo(
+  info: interface_info_type
+): info is interface_true_swap_info {
+  return info.type === "SwapV2" || info.type === "SwapV3";
+}
+function isTransferInfo(
+  info: interface_info_type
+): info is interface_Transfer_Event_info {
+  return (
+    info.type === "Transfer" ||
+    info.type === "Withdrawal" ||
+    info.type === "Deposit"
+  );
+}
+
+function isTrueLiqInfo(
+  info: interface_info_type
+): info is interface_true_LiqAction_Event_info {
+  return info.type === "LiqV2" || info.type === "LiqV3";
+}
+
 class TxReasoning {
   // readonly logs!: Log[];
   format_all_info!: interface_info_type[];
@@ -24,6 +48,7 @@ class TxReasoning {
       format_internal_txs
     );
   }
+
   private supplementOtherSwapAndV2TypeMint(
     array_info: interface_info_type[]
   ): interface_info_type[] {
@@ -41,26 +66,25 @@ class TxReasoning {
     let is_after_orthodox_info = false;
     let previous_formal_swap_receiver: string[] = [];
     for (let index = 0; index < array_info.length; ++index) {
-      let now_info_type = array_info[index] as interface_info_type;
-      if (now_info_type.type === "SwapV2" || now_info_type.type === "SwapV3") {
+      let now_info_type = array_info[index];
+      if (isTrueSwapInfo(now_info_type)) {
         initIdentifyParameters();
         is_after_orthodox_info = true;
-        previous_formal_swap_receiver.push(
-          (now_info_type as interface_swap_info).to
-        );
+        previous_formal_swap_receiver.push(now_info_type.to);
         continue;
-      } else if (
-        now_info_type.type === "LiqV2" ||
-        now_info_type.type === "LiqV3"
-      ) {
+      } else if (isTrueLiqInfo(now_info_type)) {
         initIdentifyParameters(true, true);
-        previous_formal_swap_receiver.push(
-          (now_info_type as interface_LiqAction_Event_info).to
-        );
+        previous_formal_swap_receiver.push(now_info_type.to);
         is_after_orthodox_info = true;
         continue;
       }
-      let now_info = array_info[index] as interface_Transfer_Event_info;
+      //检测了其他两类都不是自然就是第三类
+      if (!isTransferInfo(now_info_type)) {
+        continue;
+      }
+      let now_info = now_info_type;
+      //这里只是为了不写后面的替换而已
+      // let now_info = array_info[index] as interface_Transfer_Event_info;
       if (is_after_orthodox_info && now_info.type === "Transfer") {
         if (
           now_info.token ===
@@ -194,6 +218,7 @@ class TxReasoning {
           pool_token0: 0n,
           pool_token1: 0n,
           type: "OtherLiq",
+          tick: 0n,
           tickUpper: 0n,
           tickLower: 0n,
           index: 0,
@@ -213,6 +238,7 @@ class TxReasoning {
           pool_token0: 0n,
           pool_token1: 0n,
           type: "OtherLiq",
+          tick: 0n,
           tickUpper: 0n,
           tickLower: 0n,
           index: 0,
@@ -258,6 +284,7 @@ class TxReasoning {
           pool_token0: 0n,
           pool_token1: 0n,
           type: "OtherLiq",
+          tick: 0n,
           tickUpper: 0n,
           tickLower: 0n,
           index: 0,
@@ -276,6 +303,7 @@ class TxReasoning {
         amount1In: 0n,
         pool_token0: 0n,
         pool_token1: 0n,
+        tick: 0n,
         type: "OtherLiq",
         tickUpper: 0n,
         tickLower: 0n,
@@ -317,6 +345,8 @@ class TxReasoning {
           pool_token1: 0n,
           type: "Other",
           tick: 0n,
+          tickLower: 0n,
+          tickUpper: 0n,
           index: 0,
         },
         isOtherSwap: true,
@@ -343,6 +373,8 @@ class TxReasoning {
           pool_token1: 0n,
           type: "Other",
           tick: 0n,
+          tickLower: 0n,
+          tickUpper: 0n,
           index: 0,
         },
         isOtherSwap: true,
@@ -361,6 +393,8 @@ class TxReasoning {
         pool_token1: 0n,
         type: "Other",
         tick: 0n,
+        tickLower: 0n,
+        tickUpper: 0n,
         index: 0,
       },
       isOtherSwap: false,
@@ -439,4 +473,4 @@ class TxReasoning {
     return array_info;
   }
 }
-export { TxReasoning };
+export { TxReasoning, isTransferInfo, isTrueLiqInfo, isTrueSwapInfo };

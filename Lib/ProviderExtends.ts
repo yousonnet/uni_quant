@@ -16,6 +16,8 @@ import {
   interface_swap_info,
   interface_LiqAction_Event_info,
   interface_info_type,
+  interface_true_swap_info,
+  interface_true_LiqAction_Event_info,
 } from "./TypeAndInterface";
 import {
   sortUniV2SwapInfo,
@@ -24,6 +26,7 @@ import {
 } from "./UniSwapSorts";
 import { EtherScanAPICLI } from "./EScanCLI";
 import { ETH_BNB } from "@uniswap/smart-order-router";
+import { isTransferInfo } from "./SupplementInfo";
 class CustomProvider extends JsonRpcProvider {
   readonly pool_provider!: PoolProvider;
   readonly token_provider!: TokenProvider;
@@ -120,7 +123,9 @@ class CustomProvider extends JsonRpcProvider {
       nonce,
     };
   }
-  async decodeV2Swap(combine_logs: Array<Log>): Promise<interface_swap_info> {
+  async decodeV2Swap(
+    combine_logs: Array<Log>
+  ): Promise<interface_true_swap_info> {
     let pool = await this.getUniPoolToken(combine_logs[1].address);
     // let token0_decimals = await this.getTokenDecimal(pool.token0);
     // let token1_decimals = await this.getTokenDecimal(pool.token1);
@@ -142,11 +147,13 @@ class CustomProvider extends JsonRpcProvider {
       pool_token1: pool_token1_before_tx,
       type: "SwapV2",
       tick: 0n,
+      tickLower: 0n,
+      tickUpper: 0n,
       index: combine_logs[1].index,
     };
   }
 
-  async decodeV3Swap(single_log: Log): Promise<interface_swap_info> {
+  async decodeV3Swap(single_log: Log): Promise<interface_true_swap_info> {
     let pool = await this.pool_provider.getPool(single_log.address);
     let sort_out_info = sortUniV3SwapInfo(single_log);
     return {
@@ -161,6 +168,8 @@ class CustomProvider extends JsonRpcProvider {
       pool_token1: sort_out_info.pool_token1,
       type: "SwapV3",
       tick: sort_out_info.tick,
+      tickLower: 0n,
+      tickUpper: 0n,
       index: single_log.index,
     };
   }
@@ -224,7 +233,7 @@ class CustomProvider extends JsonRpcProvider {
 
   async decodeUniV3Mint(
     single_log: Log
-  ): Promise<interface_LiqAction_Event_info> {
+  ): Promise<interface_true_LiqAction_Event_info> {
     let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
       "Mint",
       single_log.data,
@@ -232,9 +241,8 @@ class CustomProvider extends JsonRpcProvider {
     );
     let pool_tokens = await this.getUniPoolToken(single_log.address);
     return {
-      sender: decoded_log[0].toLowerCase() as string,
-      to: decoded_log[1].toLowerCase() as string,
-      // owner: decoded_log[0] as string,
+      sender: decoded_log[0].toLowerCase(),
+      to: decoded_log[1].toLowerCase(),
       pool: pool_tokens.pool,
       token0: pool_tokens.token0,
       token1: pool_tokens.token1,
@@ -243,6 +251,7 @@ class CustomProvider extends JsonRpcProvider {
       pool_token0: 0n,
       pool_token1: 0n,
       type: "LiqV3",
+      tick: 0n,
       tickUpper: decoded_log[3] as bigint,
       tickLower: decoded_log[2] as bigint,
       index: single_log.index,
@@ -250,7 +259,7 @@ class CustomProvider extends JsonRpcProvider {
   }
   async decodeUniV3Burn(
     single_log: Log
-  ): Promise<interface_LiqAction_Event_info> {
+  ): Promise<interface_true_LiqAction_Event_info> {
     let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
       "Burn",
       single_log.data,
@@ -258,8 +267,8 @@ class CustomProvider extends JsonRpcProvider {
     );
     let pool_tokens = await this.getUniPoolToken(single_log.address);
     return {
-      sender: decoded_log[0].toLowerCase() as string,
-      to: decoded_log[1].toLowerCase() as string,
+      sender: decoded_log[0].toLowerCase(),
+      to: decoded_log[1].toLowerCase(),
       // owner: decoded_log[0] as string,
       pool: pool_tokens.pool,
       token0: pool_tokens.token0,
@@ -269,6 +278,7 @@ class CustomProvider extends JsonRpcProvider {
       pool_token0: 0n,
       pool_token1: 0n,
       type: "LiqV3",
+      tick: 0n,
       tickUpper: decoded_log[2] as bigint,
       tickLower: decoded_log[1] as bigint,
       index: single_log.index,
@@ -278,7 +288,7 @@ class CustomProvider extends JsonRpcProvider {
     // TODO:寻找从address出来的0地址到to地址的transfer，把to放到这个返回的to上面
     combine_logs: Array<Log>,
     array_info_before_this_logs: interface_info_type[]
-  ): Promise<interface_LiqAction_Event_info> {
+  ): Promise<interface_true_LiqAction_Event_info> {
     let decoded_log = uniswap_v2_abi_decoder.decodeEventLog(
       "Mint",
       combine_logs[1].data,
@@ -297,10 +307,8 @@ class CustomProvider extends JsonRpcProvider {
       index >= 0;
       --index
     ) {
-      if (array_info_before_this_logs[index].type === "Transfer") {
-        let now_transfer_info = array_info_before_this_logs[
-          index
-        ] as interface_Transfer_Event_info;
+      let now_transfer_info = array_info_before_this_logs[index];
+      if (isTransferInfo(now_transfer_info)) {
         if (
           now_transfer_info.from === ETH_MAINNET_CONSTANTS["0Address"] &&
           now_transfer_info.token === pool_tokens.pool
@@ -320,7 +328,7 @@ class CustomProvider extends JsonRpcProvider {
             return cur.amount > max.amount ? cur : max;
           }).to;
     return {
-      sender: decoded_log[0].toLowerCase() as string,
+      sender: decoded_log[0].toLowerCase(),
       to: to_address,
       pool: pool_tokens.pool,
       token0: pool_tokens.token0,
@@ -330,6 +338,7 @@ class CustomProvider extends JsonRpcProvider {
       pool_token0: (decoded_log_sync[0] as bigint) - decoded_log[1],
       pool_token1: (decoded_log_sync[1] as bigint) - decoded_log[2],
       type: "LiqV2",
+      tick: 0n,
       tickUpper: 0n,
       tickLower: 0n,
       index: combine_logs[1].index,
@@ -338,7 +347,7 @@ class CustomProvider extends JsonRpcProvider {
 
   async decodeUniV2Burn(
     combine_logs: Array<Log>
-  ): Promise<interface_LiqAction_Event_info> {
+  ): Promise<interface_true_LiqAction_Event_info> {
     let decoded_log = uniswap_v2_abi_decoder.decodeEventLog(
       "Burn",
       combine_logs[1].data,
@@ -351,8 +360,8 @@ class CustomProvider extends JsonRpcProvider {
     );
     let pool_tokens = await this.getUniPoolToken(combine_logs[1].address);
     return {
-      sender: decoded_log[0].toLowerCase() as string,
-      to: decoded_log[3].toLowerCase() as string,
+      sender: decoded_log[0].toLowerCase(),
+      to: decoded_log[3].toLowerCase(),
       pool: pool_tokens.pool,
       token0: pool_tokens.token0,
       token1: pool_tokens.token1,
@@ -361,6 +370,7 @@ class CustomProvider extends JsonRpcProvider {
       pool_token0: decoded_log_sync[0] + decoded_log[1],
       pool_token1: decoded_log_sync[1] + decoded_log[2],
       type: "LiqV2",
+      tick: 0n,
       tickUpper: 0n,
       tickLower: 0n,
       index: combine_logs[1].index,

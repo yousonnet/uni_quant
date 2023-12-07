@@ -2,12 +2,14 @@ import Decimal from "decimal.js";
 import {
   interface_LiqAction_Event_info,
   interface_Transfer_Event_info,
-  interface_general_info,
+  interface_general_action_info,
   interface_info_type,
   interface_swap_info,
+  interface_general_info_wrapped,
 } from "./TypeAndInterface";
 import { tradeComparator } from "@uniswap/v3-sdk";
 import { ETH_MAINNET_CONSTANTS } from "./BasisConstants";
+import { isTransferInfo } from "./SupplementInfo";
 
 class TransferTOPO {
   readonly whole_array_info!: interface_info_type[];
@@ -78,10 +80,8 @@ class TransferTOPO {
         //swap 的index也在其中
         continue;
       }
-      if (whole_array_info[i].type == "Transfer") {
-        let now_transfer_info = whole_array_info[
-          i
-        ] as interface_Transfer_Event_info;
+      let now_transfer_info = whole_array_info[i];
+      if (isTransferInfo(now_transfer_info)) {
         if (
           now_transfer_info.token === root_transfer_info.token &&
           now_transfer_info.from === root_transfer_info.to &&
@@ -137,11 +137,9 @@ function parseOutFirstStepTokensTransferFromSwap(
 ): { index: number; poolTaxed: number } {
   let swap_info = whole_array_info[root_swap_index] as interface_swap_info;
   let swap_out_token_info = getSwapOutToken(swap_info);
-  for (let i = root_swap_index; i >= 0; --i) {
-    if (whole_array_info[i].type == "Transfer") {
-      let now_transfer_info = whole_array_info[
-        i
-      ] as interface_Transfer_Event_info;
+  for (let i = root_swap_index - 1; i >= 0; --i) {
+    let now_transfer_info = whole_array_info[i];
+    if (isTransferInfo(now_transfer_info)) {
       if (
         now_transfer_info.token == swap_out_token_info.token &&
         now_transfer_info.to === swap_info.to &&
@@ -176,7 +174,7 @@ function parseOutFirstStepTokensTransferFromLiqActions(
   ] as interface_LiqAction_Event_info;
   if (liq_info.amount0In > 0) {
     //mint
-    for (let i = root_liq_index; i >= 0; --i) {
+    for (let i = root_liq_index - 1; i >= 0; --i) {
       let now_transfer_info = whole_array_info[
         i
       ] as interface_Transfer_Event_info;
@@ -204,7 +202,7 @@ function parseOutFirstStepTokensTransferFromLiqActions(
 
   if (token0) {
     //burn
-    for (let i = root_liq_index; i >= 0; --i) {
+    for (let i = root_liq_index - 1; i >= 0; --i) {
       let now_transfer_info = whole_array_info[
         i
       ] as interface_Transfer_Event_info;
@@ -226,7 +224,7 @@ function parseOutFirstStepTokensTransferFromLiqActions(
       }
     }
   } else {
-    for (let i = root_liq_index; i >= 0; --i) {
+    for (let i = root_liq_index - 1; i >= 0; --i) {
       let now_transfer_info = whole_array_info[
         i
       ] as interface_Transfer_Event_info;
@@ -251,8 +249,8 @@ function parseOutFirstStepTokensTransferFromLiqActions(
   throw new Error("can't find the first step transfer from liq action");
 }
 class BaseUnit {
-  feats!: interface_general_info;
-  constructor(single_info: interface_general_info) {
+  feats!: interface_general_action_info;
+  constructor(single_info: interface_general_action_info) {
     this.feats = single_info;
   }
 }
@@ -277,7 +275,10 @@ class UnitSwap {
       let only_1_info = whole_array_info[
         transfer_topo_ends_array[0].index
       ] as interface_Transfer_Event_info;
-      let info = whole_array_info[root_swap_index] as interface_general_info;
+      let info = whole_array_info[
+        root_swap_index
+      ] as interface_general_info_wrapped;
+
       info.to = only_1_info.to;
       info.proportion = 1;
       info.isMultiReceive = false;
@@ -297,7 +298,9 @@ class UnitSwap {
         0n
       );
       for (let item of transfer_topo_ends_array) {
-        let info = whole_array_info[root_swap_index] as interface_general_info;
+        let info = whole_array_info[
+          root_swap_index
+        ] as interface_general_info_wrapped;
         info.to = (
           whole_array_info[item.index] as interface_Transfer_Event_info
         ).to;
@@ -341,13 +344,17 @@ class UnitBurnV2 {
         token0_out_info.index,
         [root_burn_index]
       ).parseAllEndsTransfer();
+      //TODO:暂时就跟踪tken0的transfer
     }
   }
 }
-class UnitMintV3 {
+class UnitMintV2 {
   constructor(
     root_mint_index: number,
     whole_array_info: interface_info_type[]
   ) {}
 }
+
+class UnitBurnV3 {}
+class UnitMintV3 {}
 export { TransferTOPO };
