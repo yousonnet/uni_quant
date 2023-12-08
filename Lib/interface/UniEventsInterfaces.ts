@@ -73,6 +73,8 @@ interface interface_internal_tx_info_from_etherscan {
   errCode: string;
 }
 interface interface_pruned_internal_tx_info extends interface_transfer_info {
+  blockNumber: number;
+  hash: string;
   from: string;
   to: string;
   amount: bigint;

@@ -6,32 +6,33 @@ import {
   TOPICHASHTABLE,
   weth_abi_decoder,
   ETH_MAINNET_CONSTANTS,
-} from "./BasisConstants";
+} from "./constants/BasisConstants";
 import { PoolProvider } from "./PoolMetadata/ScriptInit";
 import { TokenProvider } from "./TokenMetadata/ScriptInit";
 import { CustomProvider } from "./ProviderExtends";
+// import {
+//   interface_LiqAction_Event_info,
+//   interface_Transfer_Event_info,
+//   interface_pruned_internal_tx_info,
+//   interface_swap_info,
+//   interface_general_info,
+//   // interface_Withdrawal_Event_info,
+// } from "./TypeAndInterface";
 import {
-  interface_LiqAction_Event_info,
-  interface_Transfer_Event_info,
+  interface_events_info,
+  interface_general_info,
   interface_internal_tx_info_from_etherscan,
-  interface_swap_info,
-  interface_info_type,
-  // interface_Withdrawal_Event_info,
-} from "./TypeAndInterface";
-import { last } from "lodash";
-import { receiveMessageOnPort } from "worker_threads";
-import { FixedLengthArray } from "./basisUtils";
+  interface_pruned_internal_tx_info,
+  interface_transfer_info,
+} from "./interface/UniEventsInterfaces";
 class SwapSequencer {
   readonly logs!: Log[];
   readonly map_logs_divided!: Map<string, Array<Log>>;
   readonly local_custom_provider: CustomProvider;
-  readonly internal_txs!: Map<
-    string,
-    interface_internal_tx_info_from_etherscan[]
-  >;
+  readonly internal_txs!: Map<string, interface_pruned_internal_tx_info[]>;
   constructor(
     logs: Log[],
-    internal_txs: Array<interface_internal_tx_info_from_etherscan>,
+    internal_txs: Array<interface_pruned_internal_tx_info>,
     local_custom_provider: CustomProvider
   ) {
     this.local_custom_provider = local_custom_provider;
@@ -46,8 +47,8 @@ class SwapSequencer {
     return reDivideArray(logs, "transactionHash");
   }
   private getReDevideInternalTxsIntoSameTx(
-    internal_txs: Array<interface_internal_tx_info_from_etherscan>
-  ): Map<string, Array<interface_internal_tx_info_from_etherscan>> {
+    internal_txs: Array<interface_pruned_internal_tx_info>
+  ): Map<string, Array<interface_pruned_internal_tx_info>> {
     return reDivideArray(internal_txs, "hash");
   }
   private getNonPureTransferTx(
@@ -56,7 +57,7 @@ class SwapSequencer {
     return deletePureTransferTxFromMap(map_logs_divide);
   }
   private reasoningWholeTxActionSystem(
-    whole_array_info: interface_info_type[]
+    whole_array_info: interface_general_info[]
   ) {
     // TODO:这里需要一个整体的逻辑，来判断这个tx是什么类型的，然后再去分析
     let actions_memo: number[] = [];
@@ -70,37 +71,37 @@ class SwapSequencer {
       }
     }
   }
-  private parseAtomicSwap(
-    index: number,
-    whole_array_info: interface_info_type
-  ) {
-    let token_out_info = this.getSwapOutToken(whole_array_info[index]);
-  }
-  private getSwapOutToken(info: interface_swap_info) {
-    return {
-      amount: info.amount0In > info.amount1In ? info.token1 : info.token0,
-      token: info.amount0In > info.amount1In ? info.token1 : info.token0,
-    };
-  }
-  private isSwapInfo(obj: any): obj is interface_swap_info {
-    return obj.type === "SwapV2" || obj.type === "SwapV3";
-  }
+  // private parseAtomicSwap(
+  //   index: number,
+  //   whole_array_info: interface_general_info
+  // ) {
+  //   let token_out_info = this.getSwapOutToken(whole_array_info[index]);
+  // }
+  // private getSwapOutToken(info: interface_swap_info) {
+  //   return {
+  //     amount: info.amount0In > info.amount1In ? info.token1 : info.token0,
+  //     token: info.amount0In > info.amount1In ? info.token1 : info.token0,
+  //   };
+  // }
+  // private isSwapInfo(obj: any): obj is interface_swap_info {
+  //   return obj.type === "SwapV2" || obj.type === "SwapV3";
+  // }
   // 甄别出哪些是真正契合swap amount的sub transfer（为了防止含税的token swap）
   // parse出来所有从同一from地址to出来的同一token的amount小于或等于的transfer
   // TODO:修改逻辑，transfer的receiver是唯一不再transfer out的地址，也就是说它不会出现在transfer.from的地址里面
   //TODO:可能会有多个swap，然后最后transfer到一起再transfer到一个地址的情况，想想这种情况怎么避免
-  private verifyTransferStatus(
-    array_info: { type: string }[],
-    end_transfer_index_array: number[]
-  ) {}
-  private isTransfer(obj: any): obj is interface_Transfer_Event_info {
-    return obj.type === "Transfer";
-  }
-  private isWithdrawal(obj: any): obj is interface_Transfer_Event_info {
-    return obj.type === "Withdrawal";
-  }
+  // private verifyTransferStatus(
+  //   array_info: { type: string }[],
+  //   end_transfer_index_array: number[]
+  // ) {}
+  // private isTransfer(obj: any): obj is interface_Transfer_Event_info {
+  //   return obj.type === "Transfer";
+  // }
+  // private isWithdrawal(obj: any): obj is interface_Transfer_Event_info {
+  //   return obj.type === "Withdrawal";
+  // }
   // private formatChainSwap(
-  //   internal_txs: interface_internal_tx_info_from_etherscan[],
+  //   internal_txs: interface_pruned_internal_tx_info[],
   //   head_swap_index: number,
   //   array_info: { type: string }[]
   // ): {
@@ -205,8 +206,8 @@ class SwapSequencer {
   //   }
   public async forLogsArrayToInfo(
     tx_logs: Array<Log>
-  ): Promise<Array<interface_info_type>> {
-    let return_info_array: interface_info_type[] = [];
+  ): Promise<Array<interface_general_info>> {
+    let return_info_array: interface_general_info[] = [];
     for (let log_index = 0; log_index < tx_logs.length; log_index++) {
       try {
         switch (tx_logs[log_index].topics[0]) {
@@ -286,7 +287,7 @@ class SwapSequencer {
   }
   // TODO:在总sort里加一个备忘录，把记录过的final transfer（包括eth——native）记在memo里，然后parse firstswap，如果有，那就通过memo删掉array——info里的final transfer(只用delete internal——txs——array里的，logs里的只需要记录上一次的lastswap的index，从index开始parse transfer就好)。
   // private amountChangeFromWithdrawal(
-  //   internal_txs_array: interface_internal_tx_info_from_etherscan[],
+  //   internal_txs_array: interface_pruned_internal_tx_info[],
   //   withdrawal_info,
   //   // : interface_Withdrawal_Event_info
   //   in_change: number[] = []

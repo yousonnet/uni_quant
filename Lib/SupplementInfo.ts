@@ -1,14 +1,3 @@
-// import {
-//   interface_conceived_Liq_Event_info,
-//   interface_general_info,
-//   interface_internal_tx_info_from_etherscan,
-//   interface_LiqAction_Event_info,
-//   interface_swap_info,
-//   interface_transfer_info,
-//   interface_true_swap_info,
-//   interface_true_LiqAction_Event_info,
-//   interface_general_action_info,
-// } from "./TypeAndInterface";
 import {
   interface_fake_events_info,
   interface_pruned_internal_tx_info,
@@ -17,26 +6,6 @@ import {
 import { ETH_MAINNET_CONSTANTS } from "./constants/BasisConstants";
 import { FixedLengthArray } from "./basisUtils";
 import { interface_general_info } from "./interface/UniEventsInterfaces";
-// function isTrueSwapInfo(
-//   info: interface_info_type
-// ): info is interface_true_swap_info {
-//   return info.type === "SwapV2" || info.type === "SwapV3";
-// }
-// function isTransferInfo(
-//   info: interface_info_type
-// ): info is interface_Transfer_Event_info {
-//   return (
-//     info.type === "Transfer" ||
-//     info.type === "Withdrawal" ||
-//     info.type === "Deposit"
-//   );
-// }
-
-// function isTrueLiqInfo(
-//   info: interface_info_type
-// ): info is interface_true_LiqAction_Event_info {
-//   return info.type === "LiqV2" || info.type === "LiqV3";
-// }
 
 class TxReasoning {
   // readonly logs!: Log[];

@@ -114,6 +114,8 @@ class EtherScanAPICLI {
     }
     return total_res.map((internal_tx) => {
       return {
+        blockNumber: Number(internal_tx.blockNumber),
+        hash: internal_tx.hash,
         from: internal_tx.from,
         to: internal_tx.to,
         amount: BigInt(internal_tx.value),
