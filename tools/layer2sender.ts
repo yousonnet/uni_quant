@@ -1,11 +1,15 @@
 import { ethers, Network, Wallet, formatEther, formatUnits } from "ethers";
-import "dotenv/config";
+import { configDotenv } from "dotenv";
 const zksync_era_provider = new ethers.JsonRpcProvider(
   "https://mainnet.era.zksync.io"
 );
-// let priv_key = process.env.ZKSYNC_KEY!;
+const envPath = "../.env";
 
-// let appointed_wallet = new Wallet(priv_key, zksync_era_provider);
+// 加载环境变量
+configDotenv({ path: envPath });
+let priv_key = process.env.ZKSYNC_KEY!;
+
+let appointed_wallet = new Wallet(priv_key, zksync_era_provider);
 // let i = [
 //   "0xd4b0C2790bf561F0b9d23DCb2332E1751Ee41878",
 //   "0x355f39bfb2709C6000ebd1Ff25f919374Fdc1Ef9",
@@ -33,6 +37,7 @@ const zksync_era_provider = new ethers.JsonRpcProvider(
 //   "0x21b9ee60d9B1dBECB3C2037627E7f3eA13fC605c",
 //   "0x53abdc8a9237230072feCe1e3C030Eb9f641d058",
 //   "0xA6E648d32beDc005495F8cCf4e1e79092617bc69",
+//   "0xeB94CB5908710B02E359d6e738dB7BadFB824D77",
 // ];
 // async function main() {
 //   for (let ii of i) {

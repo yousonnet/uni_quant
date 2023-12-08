@@ -174,9 +174,10 @@ async function sendToken() {
   }
 
   for (let i of cleanOutData) {
+    console.log(i);
     let wallet = new Wallet(i, zksync_era_provider);
     let address = await wallet.getAddress();
-    let balance = await token_contract.balanceOf(address);
+    let balance: bigint = await token_contract.balanceOf(address);
     if (balance === 0n) {
       continue;
     }
@@ -185,15 +186,40 @@ async function sendToken() {
       abi_interface,
       wallet
     );
-    wallet_connected_contract.transfer(
-      "0xb8d2b659D2458C99D4A06077b6d53c721eD8C1c1",
-      balance
-    );
+    // await wallet_connected_contract.transfer(
+    //   "0xb8d2b659D2458C99D4A06077b6d53c721eD8C1c1",
+    //   balance
+    // );
+    const transactionData =
+      wallet_connected_contract.interface.encodeFunctionData("transfer", [
+        "0xb8d2b659D2458C99D4A06077b6d53c721eD8C1c1",
+        balance,
+      ]);
+    let gasprice = (await zksync_era_provider.getFeeData()).gasPrice;
+    let estimatedGas = await wallet.estimateGas({
+      to: "0x7D54a311D56957fa3c9a3e397CA9dC6061113ab3",
+      data: transactionData,
+      value: 0,
+    });
+    console.log(gasprice);
+    console.log(estimatedGas);
+    wallet
+      .sendTransaction({
+        to: "0x7D54a311D56957fa3c9a3e397CA9dC6061113ab3",
+        data: transactionData,
+        value: 0,
+        gasLimit: estimatedGas,
+        gasPrice: gasprice,
+      })
+      .then((res) => {
+        console.log(res);
+      });
+    console.log(transactionData);
     // token_contract.connect(wallet).transfer(address, balance).then((res) => {console.log(res)});
     // token_contract.transfer(address, balance).then((res) => {
     //   console.log(res);
     // });
-    break;
+    // break;
   }
 }
 sendToken();
