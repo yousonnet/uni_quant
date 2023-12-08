@@ -1,21 +1,5 @@
 import { ETH_MAINNET_CONSTANTS } from "../constants/BasisConstants";
 
-// interface interface_base_info {
-//   sender: string;
-//   to: string;
-//   pool: string;
-//   token0: string;
-//   token1: string;
-//   amount0In: bigint;
-//   amount1In: bigint;
-//   pool_token0: bigint;
-//   pool_token1: bigint;
-//   tick: bigint;
-//   tickUpper: bigint;
-//   tickLower: bigint;
-//   index: number;
-// }
-
 interface interface_events_info {
   sender: string;
   to: string;
