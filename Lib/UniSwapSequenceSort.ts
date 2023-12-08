@@ -10,14 +10,7 @@ import {
 import { PoolProvider } from "./PoolMetadata/ScriptInit";
 import { TokenProvider } from "./TokenMetadata/ScriptInit";
 import { CustomProvider } from "./ProviderExtends";
-// import {
-//   interface_LiqAction_Event_info,
-//   interface_Transfer_Event_info,
-//   interface_pruned_internal_tx_info,
-//   interface_swap_info,
-//   interface_general_info,
-//   // interface_Withdrawal_Event_info,
-// } from "./TypeAndInterface";
+
 import {
   interface_events_info,
   interface_general_info,
