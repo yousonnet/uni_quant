@@ -1,3 +1,14 @@
 TODO:继续检查supplementSwap函数的效用，找多个同时uniswap在otherswap之前的tx检查一下
 TODO:MintV2的decode也多次检查一下
 TODO:SupplementInfo.ts重新整理一遍逻辑
+TODO:无法解决V3的OtherLiq问题
+TODO:无法解决这种swap没有event的fake event问题
+https://etherscan.io/tx/0x04b85d54b0dbdab6c706d874913fd2c7a03613837298fc282e7dd20b91804122#eventlog
+TODO:无法定义router是哪个address
+TODO:不用if_has_xxx和router直接fake events？
+TODO:Burn有amount 0 的情况
+https://etherscan.io/tx/0x0f96c804112faa74c1264dc175b040f284af38bf3e438cec7319cd661f67df56#eventlog
+TODO:BurnV3直接找index以下的对应token transfer out，不考虑数量，
+TODO:fake Burn 不做，只考虑fake swap mint和MintV2
+TODO:mintV3的search backwards或者mintv3的increaseliquidity evnet的tokenId
+TODO

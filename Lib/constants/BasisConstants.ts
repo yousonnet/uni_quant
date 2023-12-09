@@ -38,6 +38,7 @@ const TOPICHASHTABLE = {
   SwapV3: uniswap_v3_abi_decoder.getEvent("Swap")?.topicHash as string,
   MintV3: uniswap_v3_abi_decoder.getEvent("Mint")?.topicHash as string,
   BurnV3: uniswap_v3_abi_decoder.getEvent("Burn")?.topicHash as string,
+  // CollectV3: uniswap_v3_abi_decoder.getEvent("Collect")?.topicHash as string,
 };
 
 export {

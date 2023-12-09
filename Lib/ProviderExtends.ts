@@ -67,6 +67,7 @@ class CustomProvider extends JsonRpcProvider {
           TOPICHASHTABLE.BurnV3,
           TOPICHASHTABLE.MintV3,
           TOPICHASHTABLE.SwapV3,
+          // TOPICHASHTABLE.CollectV3,
         ],
       ],
     });
@@ -339,7 +340,31 @@ class CustomProvider extends JsonRpcProvider {
       index: combine_logs[1].index,
     };
   }
-
+  // async decodeUniV3Collect(log: Log) {
+  //   let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
+  //     "Collect",
+  //     log.data,
+  //     log.topics
+  //   );
+  //   console.log(decoded_log);
+  //   // let pool_tokens = await this.getUniPoolToken(log.address);
+  //   // return {
+  //   //   sender: decoded_log[0].toLowerCase(),
+  //   //   to: decoded_log[1].toLowerCase(),
+  //   //   pool: pool_tokens.pool,
+  //   //   token0: pool_tokens.token0,
+  //   //   token1: pool_tokens.token1,
+  //   //   amount0In: decoded_log[2] as bigint,
+  //   //   amount1In: decoded_log[3] as bigint,
+  //   //   pool_token0: 0n,
+  //   //   pool_token1: 0n,
+  //   //   type: "CollectV3",
+  //   //   tick: 0n,
+  //   //   tickUpper: 0n,
+  //   //   tickLower: 0n,
+  //   //   index: log.index,
+  //   // };
+  // }
   async decodeUniV2Burn(
     combine_logs: Array<Log>
   ): Promise<interface_events_info> {

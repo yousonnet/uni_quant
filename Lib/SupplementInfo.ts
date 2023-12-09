@@ -3,6 +3,7 @@ import {
   interface_pruned_internal_tx_info,
   interface_transfer_info,
 } from "./interface/UniEventsInterfaces";
+// import { interface_fake_events_info } from "./interface/UniEventsInterfaces";
 import { ETH_MAINNET_CONSTANTS } from "./constants/BasisConstants";
 import { FixedLengthArray } from "./basisUtils";
 import { interface_general_info } from "./interface/UniEventsInterfaces";
@@ -14,16 +15,19 @@ class TxReasoning {
     array_info: interface_general_info[],
     internal_txs: interface_pruned_internal_tx_info[]
   ) {
-    // this.logs = logs;
     let format_internal_txs = internal_txs;
-    array_info = this.supplementOtherSwapAndV2TypeMint(array_info);
+    //因为之前老版本的问题，这里就懒得改变量了
     this.format_all_info = this.combineLogsAndInternalTxs(
       array_info,
       format_internal_txs
     );
+    // 将其改为format_all_info先，supplement_fake_info在后
+    array_info = this.supplementOtherSwapAndV2TypeMint(this.format_all_info);
   }
 
   private supplementOtherSwapAndV2TypeMint(
+    //这里默认其他类burn mint都是v2行为，所以一定会去找有关0address的transfer
+    //但实际上，也有可能有v3，也就是nft的transfer
     array_info: interface_general_info[]
   ): interface_general_info[] {
     //这个method 只适用于同logs里由uniswap的 action然后再有other swap 的action时，才能identify。
@@ -31,12 +35,12 @@ class TxReasoning {
       interface_transfer_info[]
     >(2);
     initIdentifyParameters();
-    let if_has_mint = { hasMint: false, to: "test", pool: "test_pool_token" };
-    let if_has_burn = {
-      hasBurn: false,
-      from: "test3",
-      pool: "test_pool_token3",
-    };
+    // let if_has_mint = { hasMint: false, to: "test", pool: "test_pool_token" };
+    // let if_has_burn = {
+    //   hasBurn: false,
+    //   from: "test3",
+    //   pool: "test_pool_token3",
+    // };
     let is_after_orthodox_info = false;
     let previous_formal_swap_receiver: string[] = [];
     for (let index = 0; index < array_info.length; ++index) {
