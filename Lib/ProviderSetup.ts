@@ -12,6 +12,9 @@ import { CustomProvider } from "./ProviderExtends";
 // const JSON_NODE_PORT = process.env.JSON_NODE_PORT as string;
 const local_provider = new ethers.JsonRpcProvider("http://127.0.0.1:3334");
 // const local_custom_provider = new CustomProvider("http://127.0.0.1:3334");
-const default_provider = ethers.getDefaultProvider("homestead");
-
+// const default_provider = ethers.getDefaultProvider("homestead");
+const default_provider = new ethers.AlchemyProvider(
+  "homestead",
+  "2GomDhKvLRCtjjlvbb-EX58NYKcbNbYy"
+);
 export { local_provider, default_provider };

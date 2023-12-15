@@ -14,6 +14,7 @@ import {
   interface_pruned_internal_tx_info,
   interface_transfer_info,
 } from "./interface/UniEventsInterfaces";
+
 class SwapSequencer {
   readonly logs!: Log[];
   readonly map_logs_divided!: Map<string, Array<Log>>;
@@ -54,6 +55,9 @@ class SwapSequencer {
       try {
         switch (tx_logs[log_index].topics[0]) {
           case TOPICHASHTABLE.Swap:
+            if (tx_logs[log_index - 1].topics[0] !== TOPICHASHTABLE.Sync) {
+              break;
+            }
             // TODO:改成try catch 模式，以防同名同参数的topic 但是执行逻辑不一样导致decode报错
             let info = await this.local_custom_provider.decodeV2Swap([
               tx_logs[log_index - 1],
@@ -68,6 +72,9 @@ class SwapSequencer {
             return_info_array.push(info2);
             break;
           case TOPICHASHTABLE.Mint:
+            if (tx_logs[log_index - 1].topics[0] !== TOPICHASHTABLE.Sync) {
+              break;
+            }
             let info3 = await this.local_custom_provider.decodeUniV2Mint(
               [tx_logs[log_index - 1], tx_logs[log_index]],
               return_info_array
@@ -75,22 +82,39 @@ class SwapSequencer {
             return_info_array.push(info3);
             break;
           case TOPICHASHTABLE.MintV3:
-            let info4 = await this.local_custom_provider.decodeUniV3Mint(
-              tx_logs[log_index]
-            );
+            if (
+              tx_logs[log_index + 1].topics[0] !==
+              TOPICHASHTABLE.IncreaseLiquidity
+            ) {
+              break;
+            }
+            let info4 = await this.local_custom_provider.decodeUniV3Mint([
+              tx_logs[log_index],
+              tx_logs[log_index + 1],
+            ]);
             return_info_array.push(info4);
             break;
           case TOPICHASHTABLE.Burn:
-            let info5 = await this.local_custom_provider.decodeUniV2Burn([
-              tx_logs[log_index - 1],
-              tx_logs[log_index],
-            ]);
+            if (tx_logs[log_index - 1].topics[0] !== TOPICHASHTABLE.Sync) {
+              break;
+            }
+            let info5 = await this.local_custom_provider.decodeUniV2Burn(
+              [tx_logs[log_index - 1], tx_logs[log_index]],
+              return_info_array
+            );
             return_info_array.push(info5);
             break;
           case TOPICHASHTABLE.BurnV3:
-            let info6 = await this.local_custom_provider.decodeUniV3Burn(
-              tx_logs[log_index]
-            );
+            if (
+              tx_logs[log_index + 1].topics[0] !==
+              TOPICHASHTABLE.DecreaseLiquidity
+            ) {
+              break;
+            }
+            let info6 = await this.local_custom_provider.decodeUniV3Burn([
+              tx_logs[log_index],
+              tx_logs[log_index + 1],
+            ]);
             return_info_array.push(info6);
             break;
           case TOPICHASHTABLE.Transfer:

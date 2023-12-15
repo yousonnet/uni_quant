@@ -147,23 +147,40 @@ function reDivideArray<T extends { [key: string]: any }>(
 function deletePureTransferTxFromMap(
   map_type_logs_divide: Map<string, Array<Log>>
 ) {
-  let swap_topics: string[] = [
-    // TOPICHASHTABLE.Withdrawal,
-    // TOPICHASHTABLE.Deposit,
-    // TOPICHASHTABLE.Transfer,
-    // TOPICHASHTABLE.Sync,
+  let only_need_1_shot_topics: string[] = [
     TOPICHASHTABLE.Burn,
-    TOPICHASHTABLE.BurnV3,
     TOPICHASHTABLE.Mint,
-    TOPICHASHTABLE.MintV3,
+    // V3的mint 和burn只是开辟一个位置，并不会让资产进入流动池中让它们交易
+    //像jaredfromsubway这种mevbot能通过只mint 和burnliq 来夹人
+    //https://etherscan.io/tx/0x78690d4b324953b8e27f229edbc9281fa5d23a035eec261e0f733da26727edeb
+    //所以只有当mint和increase liquidity 同时存在的时候才能判断是liq actions
     TOPICHASHTABLE.Swap,
     TOPICHASHTABLE.SwapV3,
+
     //TODO:类似于fraxswap这种可能会有单个sync存在
+  ];
+  let multiple_topics = [
+    TOPICHASHTABLE.MintV3,
+    TOPICHASHTABLE.BurnV3,
+    TOPICHASHTABLE.DecreaseLiquidity,
+    TOPICHASHTABLE.IncreaseLiquidity,
   ];
   for (let tx_logs of map_type_logs_divide) {
     let swap_mark = false;
-    for (let log of tx_logs[1]) {
-      if (swap_topics.includes(log.topics[0])) {
+    for (let log_index = 0; log_index < tx_logs[1].length; ++log_index) {
+      if (only_need_1_shot_topics.includes(tx_logs[1][log_index].topics[0])) {
+        swap_mark = true;
+        break;
+      } else if (
+        tx_logs[1][log_index].topics[0] === TOPICHASHTABLE.MintV3 &&
+        tx_logs[1][log_index + 1].topics[0] === TOPICHASHTABLE.IncreaseLiquidity
+      ) {
+        swap_mark = true;
+        break;
+      } else if (
+        tx_logs[1][log_index].topics[0] === TOPICHASHTABLE.BurnV3 &&
+        tx_logs[1][log_index + 1].topics[0] === TOPICHASHTABLE.DecreaseLiquidity
+      ) {
         swap_mark = true;
         break;
       }

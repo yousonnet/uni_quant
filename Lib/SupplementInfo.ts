@@ -17,12 +17,12 @@ class TxReasoning {
   ) {
     let format_internal_txs = internal_txs;
     //因为之前老版本的问题，这里就懒得改变量了
-    this.format_all_info = this.combineLogsAndInternalTxs(
+    array_info = this.combineLogsAndInternalTxs(
       array_info,
       format_internal_txs
     );
     // 将其改为format_all_info先，supplement_fake_info在后
-    array_info = this.supplementOtherSwapAndV2TypeMint(this.format_all_info);
+    this.format_all_info = this.supplementOtherSwapAndV2TypeMint(array_info);
   }
 
   private supplementOtherSwapAndV2TypeMint(
@@ -35,12 +35,12 @@ class TxReasoning {
       interface_transfer_info[]
     >(2);
     initIdentifyParameters();
-    // let if_has_mint = { hasMint: false, to: "test", pool: "test_pool_token" };
-    // let if_has_burn = {
-    //   hasBurn: false,
-    //   from: "test3",
-    //   pool: "test_pool_token3",
-    // };
+    let if_has_mint = { hasMint: false, to: "test", pool: "test_pool_token" };
+    let if_has_burn = {
+      hasBurn: false,
+      from: "test3",
+      pool: "test_pool_token3",
+    };
     let is_after_orthodox_info = false;
     let previous_formal_swap_receiver: string[] = [];
     for (let index = 0; index < array_info.length; ++index) {
@@ -105,8 +105,8 @@ class TxReasoning {
             let result_1 = this.fakeMintIdentify(
               same_depth_block_transfer_action.array[0],
               same_depth_block_transfer_action.array[1],
-              if_has_mint,
-              previous_formal_swap_receiver
+              if_has_mint
+              // previous_formal_swap_receiver
             );
             if (result_1.isOtherMint) {
               array_info.splice(index + 1, 0, result_1.info);
@@ -117,7 +117,8 @@ class TxReasoning {
               same_depth_block_transfer_action.array[0],
               same_depth_block_transfer_action.array[1],
               if_has_burn,
-              previous_formal_swap_receiver
+              array_info.slice(0, index)
+              // previous_formal_swap_receiver
             );
             if (result_2.isOtherBurn) {
               array_info.splice(index + 1, 0, result_2.info);
@@ -169,70 +170,92 @@ class TxReasoning {
     pos0_transfer_block: interface_transfer_info[],
     pos1_transfer_block: interface_transfer_info[],
     if_has_burn: { hasBurn: boolean; from: string; pool: string },
-    previous_swap_or_liq_to_receiver: string[]
+    previous_info_array: interface_general_info[]
+    //TODO:burn会先从user to pool address，然后再从pool address到0address，
+    // 且先于token 的transfer
+    //为了找之前的user to pool的pool token transfer
+    // previous_swap_or_liq_to_receiver: string[]
   ): { info: interface_fake_events_info; isOtherBurn: boolean } {
-    let transfer_0_out = pos0_transfer_block.find((item) =>
-      previous_swap_or_liq_to_receiver.includes(item.to)
+    let transfer_0_out = pos0_transfer_block.find(
+      (item) =>
+        item.from === if_has_burn.pool &&
+        pos1_transfer_block.some((item_1) => item_1.to === item.to)
     );
-    let transfer_1_out = pos1_transfer_block.find((item) =>
-      previous_swap_or_liq_to_receiver.includes(item.to)
+    let transfer_1_out = pos1_transfer_block.find(
+      (item) =>
+        item.from === if_has_burn.pool &&
+        pos0_transfer_block.some((item_1) => item_1.to === item.to)
     );
-    if (
-      transfer_0_out &&
-      transfer_1_out &&
-      transfer_0_out.from === transfer_1_out.from &&
-      transfer_0_out.to === transfer_1_out.to &&
-      if_has_burn.hasBurn &&
-      transfer_0_out.from === if_has_burn.pool
-      // &&
-      // if_has_burn.from === if_has_burn.pool
-    ) {
-      return {
-        info: {
-          sender: "",
-          to: transfer_0_out.to,
-          pool: if_has_burn.pool,
-          token0: transfer_0_out.token,
-          token1: transfer_1_out.token,
-          amount0In: -transfer_0_out.amount,
-          amount1In: -transfer_1_out.amount,
-          pool_token0: 0n,
-          pool_token1: 0n,
-          type: "OtherLiq",
-          tick: 0n,
-          tickUpper: 0n,
-          tickLower: 0n,
-          index: 0,
-        },
-        isOtherBurn: true,
-      };
-    } else {
-      return {
-        info: {
-          sender: "",
-          to: "",
-          pool: "",
-          token0: "",
-          token1: "",
-          amount0In: 0n,
-          amount1In: 0n,
-          pool_token0: 0n,
-          pool_token1: 0n,
-          type: "OtherLiq",
-          tick: 0n,
-          tickUpper: 0n,
-          tickLower: 0n,
-          index: 0,
-        },
-        isOtherBurn: false,
-      };
+    let initialized_send: interface_transfer_info[] = [];
+    for (let i = previous_info_array.length - 1; i >= 0; i--) {
+      let now_info = previous_info_array[i];
+      if (now_info.type === "Transfer") {
+        if (
+          now_info.token === if_has_burn.pool &&
+          now_info.to !== ETH_MAINNET_CONSTANTS["0Address"]
+        ) {
+          initialized_send.push(now_info);
+          break;
+        }
+      }
+      if (
+        initialized_send.length === 1 &&
+        transfer_0_out &&
+        transfer_1_out &&
+        transfer_0_out.from === transfer_1_out.from &&
+        transfer_0_out.to === transfer_1_out.to
+        //  &&
+        // if_has_burn.hasBurn &&
+        // transfer_0_out.from === if_has_burn.pool
+        // &&
+        // if_has_burn.from === if_has_burn.pool
+      ) {
+        return {
+          info: {
+            sender: "",
+            to: initialized_send[0].from,
+            pool: if_has_burn.pool,
+            token0: transfer_0_out.token,
+            token1: transfer_1_out.token,
+            amount0In: -transfer_0_out.amount,
+            amount1In: -transfer_1_out.amount,
+            pool_token0: 0n,
+            pool_token1: 0n,
+            type: "OtherLiq",
+            tick: 0n,
+            tickUpper: 0n,
+            tickLower: 0n,
+            index: 0,
+          },
+          isOtherBurn: true,
+        };
+      }
     }
+    return {
+      info: {
+        sender: "",
+        to: "",
+        pool: "",
+        token0: "",
+        token1: "",
+        amount0In: 0n,
+        amount1In: 0n,
+        pool_token0: 0n,
+        pool_token1: 0n,
+        type: "OtherLiq",
+        tick: 0n,
+        tickUpper: 0n,
+        tickLower: 0n,
+        index: 0,
+      },
+      isOtherBurn: false,
+    };
   }
   private fakeMintIdentify(
     pos0_transfer_block: interface_transfer_info[],
     pos1_transfer_block: interface_transfer_info[],
-    if_has_mint: { hasMint: boolean; to: string; pool: string },
-    previous_swap_or_liq_to_receiver: string[]
+    if_has_mint: { hasMint: boolean; to: string; pool: string }
+    // previous_swap_or_liq_to_receiver: string[]
   ): { info: interface_fake_events_info; isOtherMint: boolean } {
     // pos0_transfer_block.forEach((item, index) => {
     //   if (pos1_transfer_block.map((ite) => ite.to).includes(item.to) &&if_has_mint.hasMint === true) {
@@ -246,17 +269,18 @@ class TxReasoning {
     if (
       transfer_0 &&
       transfer_1 &&
-      if_has_mint.hasMint &&
-      transfer_0.from === transfer_1.from &&
-      previous_swap_or_liq_to_receiver.includes(transfer_0.from)
+      // if_has_mint.hasMint &&
+      transfer_0.from === transfer_1.from
+      //  &&
+      // previous_swap_or_liq_to_receiver.includes(transfer_0.from)
     ) {
-      let router_address = previous_swap_or_liq_to_receiver.find(
-        (item) => item === transfer_0!.from
-      )!;
+      // let router_address = previous_swap_or_liq_to_receiver.find(
+      //   (item) => item === transfer_0!.from
+      // )!;
       return {
         info: {
           sender: "",
-          to: router_address,
+          to: if_has_mint.to,
           pool: transfer_1.to,
           token0: transfer_0.token,
           token1: transfer_1.token,
@@ -436,18 +460,16 @@ class TxReasoning {
         array_info[index].type === "Withdrawal" ||
         array_info[index].type === "Deposit"
       ) {
-        let before_slice = array_info.slice(0, index);
-        let after_slice = array_info.slice(index + 1);
-        array_info = before_slice
-          .concat(
-            format_internal_txs.slice(
-              breakpoint[traverser].breakpoint + 1,
-              breakpoint[traverser + 1] === undefined
-                ? undefined
-                : breakpoint[traverser + 1].breakpoint
-            )
-          )
-          .concat(after_slice);
+        // let before_slice = array_info.slice(0, index);
+        let internalSlice = format_internal_txs.slice(
+          breakpoint[traverser].breakpoint + 1,
+          breakpoint[traverser + 1] === undefined
+            ? undefined
+            : breakpoint[traverser + 1].breakpoint
+        );
+
+        // 使用 splice 替换 array_info 中的元素
+        array_info.splice(index, 1, ...internalSlice);
         traverser = traverser + 1;
       }
     }

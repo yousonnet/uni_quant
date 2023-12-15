@@ -1,4 +1,11 @@
-import { JsonRpcProvider, Contract, Log, formatUnits, isAddress } from "ethers";
+import {
+  JsonRpcProvider,
+  Contract,
+  Log,
+  formatUnits,
+  isAddress,
+  EventLog,
+} from "ethers";
 import {
   uniswap_router_abi_decoder,
   uniswap_v2_abi_decoder,
@@ -47,7 +54,40 @@ class CustomProvider extends JsonRpcProvider {
     this.token_provider = token_provider;
     this.etherscan_provider = etherscan_provider;
   }
-
+  async getWhoOwnedTheERC721TokenWhen(
+    block_number: number,
+    contract_address: string,
+    token_id: number,
+    tx_hash: string
+  ): Promise<string> {
+    let erc721_contract = new Contract(
+      contract_address,
+      ETH_MAINNET_CONSTANTS.UNISWAP.V3NFTABI,
+      this
+    );
+    const filter = erc721_contract.filters.Transfer(null, null, token_id);
+    const events = (await erc721_contract.queryFilter(
+      filter,
+      0,
+      block_number
+    )) as EventLog[];
+    // 其实暴力的话直接去length-1项就可以了
+    // for (let i = events.length - 1; i >= 0; --i) {
+    //   if (events[i].blockNumber <= block_number) {
+    //     return events[i].args[1].toLowerCase();
+    //   }
+    // }
+    if (
+      events.length !== 0
+      // &&
+      // events[events.length - 1].transactionHash === tx_hash
+    ) {
+      return events
+        .find((item) => item.transactionHash === tx_hash)!
+        .args[1].toLowerCase();
+    }
+    return ETH_MAINNET_CONSTANTS["0Address"];
+  }
   async getSwapRelatedLogs(
     start_block_number: number,
     end_block_number: number
@@ -67,6 +107,8 @@ class CustomProvider extends JsonRpcProvider {
           TOPICHASHTABLE.BurnV3,
           TOPICHASHTABLE.MintV3,
           TOPICHASHTABLE.SwapV3,
+          TOPICHASHTABLE.DecreaseLiquidity,
+          TOPICHASHTABLE.IncreaseLiquidity,
           // TOPICHASHTABLE.CollectV3,
         ],
       ],
@@ -177,7 +219,7 @@ class CustomProvider extends JsonRpcProvider {
       index: single_log.index,
     };
   }
-
+  // async decodeV3NFTTransfer(single_info: Log): Promise<interface_events_info> {}
   async decodeTransfer(single_log: Log): Promise<interface_transfer_info> {
     let decoded_log = weth_abi_decoder.decodeEventLog(
       "Transfer",
@@ -231,16 +273,25 @@ class CustomProvider extends JsonRpcProvider {
     };
   }
 
-  async decodeUniV3Mint(single_log: Log): Promise<interface_events_info> {
+  async decodeUniV3Mint(combine_logs: Log[]): Promise<interface_events_info> {
     let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
       "Mint",
-      single_log.data,
-      single_log.topics
+      combine_logs[0].data,
+      combine_logs[0].topics
     );
-    let pool_tokens = await this.getUniPoolToken(single_log.address);
+    let increase_liquidity_decoded_log = this.decodeUniV3IncreaseLiquidity(
+      combine_logs[1]
+    );
+    let receiver = await this.getWhoOwnedTheERC721TokenWhen(
+      combine_logs[1].blockNumber,
+      combine_logs[1].address,
+      Number(increase_liquidity_decoded_log.tokenId),
+      combine_logs[1].transactionHash
+    );
+    let pool_tokens = await this.getUniPoolToken(combine_logs[0].address);
     return {
       sender: decoded_log[0].toLowerCase(),
-      to: decoded_log[1].toLowerCase(),
+      to: receiver,
       pool: pool_tokens.pool,
       token0: pool_tokens.token0,
       token1: pool_tokens.token1,
@@ -252,19 +303,28 @@ class CustomProvider extends JsonRpcProvider {
       tick: 0n,
       tickUpper: decoded_log[3] as bigint,
       tickLower: decoded_log[2] as bigint,
-      index: single_log.index,
+      index: combine_logs[1].index,
     };
   }
-  async decodeUniV3Burn(single_log: Log): Promise<interface_events_info> {
+  async decodeUniV3Burn(combine_logs: Log[]): Promise<interface_events_info> {
     let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
       "Burn",
-      single_log.data,
-      single_log.topics
+      combine_logs[0].data,
+      combine_logs[0].topics
     );
-    let pool_tokens = await this.getUniPoolToken(single_log.address);
+    let decrease_decoded_log = this.decodeUniV3DecreaseLiquidity(
+      combine_logs[1]
+    );
+    let receiver = await this.getWhoOwnedTheERC721TokenWhen(
+      combine_logs[1].blockNumber,
+      combine_logs[1].address,
+      Number(decrease_decoded_log.tokenId),
+      combine_logs[1].transactionHash
+    );
+    let pool_tokens = await this.getUniPoolToken(combine_logs[0].address);
     return {
       sender: decoded_log[0].toLowerCase(),
-      to: decoded_log[1].toLowerCase(),
+      to: receiver,
       // owner: decoded_log[0] as string,
       pool: pool_tokens.pool,
       token0: pool_tokens.token0,
@@ -277,7 +337,7 @@ class CustomProvider extends JsonRpcProvider {
       tick: 0n,
       tickUpper: decoded_log[2] as bigint,
       tickLower: decoded_log[1] as bigint,
-      index: single_log.index,
+      index: combine_logs[1].index,
     };
   }
   async decodeUniV2Mint(
@@ -297,7 +357,8 @@ class CustomProvider extends JsonRpcProvider {
     );
     let pool_tokens = await this.getUniPoolToken(combine_logs[1].address);
     //以下是找哪个是to_address_part
-    let pool_token_transfer_from_0Address: interface_transfer_info[] = [];
+    // let pool_token_transfer_from_0Address: interface_transfer_info[] = [];
+    let receiver = "";
     for (
       let index = array_info_before_this_logs.length - 1;
       index >= 0;
@@ -307,9 +368,11 @@ class CustomProvider extends JsonRpcProvider {
       if (now_transfer_info.type === "Transfer") {
         if (
           now_transfer_info.from === ETH_MAINNET_CONSTANTS["0Address"] &&
-          now_transfer_info.token === pool_tokens.pool
+          now_transfer_info.token === pool_tokens.pool &&
+          now_transfer_info.to !== ETH_MAINNET_CONSTANTS["0Address"]
         ) {
-          pool_token_transfer_from_0Address.push(now_transfer_info);
+          // pool_token_transfer_from_0Address.push(now_transfer_info);
+          receiver = now_transfer_info.to;
         } else if (
           now_transfer_info.from !== ETH_MAINNET_CONSTANTS["0Address"]
         ) {
@@ -317,15 +380,18 @@ class CustomProvider extends JsonRpcProvider {
         }
       }
     }
-    let to_address =
-      pool_token_transfer_from_0Address.length === 1
-        ? pool_token_transfer_from_0Address[0].to
-        : pool_token_transfer_from_0Address.reduce((max, cur) => {
-            return cur.amount > max.amount ? cur : max;
-          }).to;
+    if (receiver === "") {
+      throw new Error("can't find receiver");
+    }
+    // let to_address =
+    //   pool_token_transfer_from_0Address.length === 1
+    //     ? pool_token_transfer_from_0Address[0].to
+    //     : pool_token_transfer_from_0Address.reduce((max, cur) => {
+    //         return cur.amount > max.amount ? cur : max;
+    //       }).to;
     return {
       sender: decoded_log[0].toLowerCase(),
-      to: to_address,
+      to: receiver,
       pool: pool_tokens.pool,
       token0: pool_tokens.token0,
       token1: pool_tokens.token1,
@@ -340,33 +406,9 @@ class CustomProvider extends JsonRpcProvider {
       index: combine_logs[1].index,
     };
   }
-  // async decodeUniV3Collect(log: Log) {
-  //   let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
-  //     "Collect",
-  //     log.data,
-  //     log.topics
-  //   );
-  //   console.log(decoded_log);
-  //   // let pool_tokens = await this.getUniPoolToken(log.address);
-  //   // return {
-  //   //   sender: decoded_log[0].toLowerCase(),
-  //   //   to: decoded_log[1].toLowerCase(),
-  //   //   pool: pool_tokens.pool,
-  //   //   token0: pool_tokens.token0,
-  //   //   token1: pool_tokens.token1,
-  //   //   amount0In: decoded_log[2] as bigint,
-  //   //   amount1In: decoded_log[3] as bigint,
-  //   //   pool_token0: 0n,
-  //   //   pool_token1: 0n,
-  //   //   type: "CollectV3",
-  //   //   tick: 0n,
-  //   //   tickUpper: 0n,
-  //   //   tickLower: 0n,
-  //   //   index: log.index,
-  //   // };
-  // }
   async decodeUniV2Burn(
-    combine_logs: Array<Log>
+    combine_logs: Array<Log>,
+    array_info_before_this_logs: interface_general_info[]
   ): Promise<interface_events_info> {
     let decoded_log = uniswap_v2_abi_decoder.decodeEventLog(
       "Burn",
@@ -379,9 +421,26 @@ class CustomProvider extends JsonRpcProvider {
       combine_logs[0].topics
     );
     let pool_tokens = await this.getUniPoolToken(combine_logs[1].address);
+    let receiver = "";
+    for (let i = array_info_before_this_logs.length - 1; i >= 0; --i) {
+      let now_transfer_info = array_info_before_this_logs[i];
+      if (now_transfer_info.type === "Transfer") {
+        if (
+          now_transfer_info.to === pool_tokens.pool &&
+          now_transfer_info.token === pool_tokens.pool
+        ) {
+          receiver = now_transfer_info.from;
+          break;
+        }
+      }
+    }
+    if (receiver === "") {
+      throw new Error("can't find receiver");
+    }
     return {
       sender: decoded_log[0].toLowerCase(),
-      to: decoded_log[3].toLowerCase(),
+      //TODO:查看这个逻辑严谨与否
+      to: receiver.toLowerCase(),
       pool: pool_tokens.pool,
       token0: pool_tokens.token0,
       token1: pool_tokens.token1,
@@ -394,6 +453,38 @@ class CustomProvider extends JsonRpcProvider {
       tickUpper: 0n,
       tickLower: 0n,
       index: combine_logs[1].index,
+    };
+  }
+  decodeUniV3DecreaseLiquidity(single_log: Log): {
+    tokenId: bigint;
+    amount0In: bigint;
+    amount1In: bigint;
+  } {
+    let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
+      "DecreaseLiquidity",
+      single_log.data,
+      single_log.topics
+    );
+    return {
+      tokenId: decoded_log[0] as bigint,
+      amount0In: -(decoded_log[2] as bigint),
+      amount1In: -(decoded_log[3] as bigint),
+    };
+  }
+  decodeUniV3IncreaseLiquidity(single_log: Log): {
+    tokenId: bigint;
+    amount0In: bigint;
+    amount1In: bigint;
+  } {
+    let decoded_log = uniswap_v3_abi_decoder.decodeEventLog(
+      "IncreaseLiquidity",
+      single_log.data,
+      single_log.topics
+    );
+    return {
+      tokenId: decoded_log[0] as bigint,
+      amount0In: decoded_log[2] as bigint,
+      amount1In: decoded_log[3] as bigint,
     };
   }
 }

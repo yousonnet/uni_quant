@@ -8,7 +8,7 @@ import {
 } from "./interface/UniEventsInterfaces";
 import { AxiosResponse, AxiosInstance } from "axios";
 import { ETH_MAINNET_CONSTANTS } from "./constants/BasisConstants";
-const E_SCAN_API_KEY = process.env.E_SCAN_API_KEY as string;
+const E_SCAN_API_KEY = process.env.E_SCAN_API_KEY!;
 
 class EtherScanAPICLI {
   readonly e_scan_cli!: AxiosInstance;
@@ -138,6 +138,9 @@ class EtherScanAPICLI {
 // 18487824 block number
 // getBlockNumberFromTimestamp(1698969600).then((res) => console.log(res));
 let etherscan_cli = new EtherScanAPICLI(E_SCAN_API_KEY);
+// etherscan_cli
+//   .getInternalTxFromBlockRange(18487824, 18487824, 1)
+//   .then((res) => console.log(res));
 export {
   // getBlockNumberFromTimestamp,
   // getInternalTxByHash,
